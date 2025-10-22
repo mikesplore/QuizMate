@@ -14,6 +14,13 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Allow specific external hosts (e.g., ngrok tunnels) to access the dev server
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      'd9783a22362a.ngrok-free.app',
+      '05sf7791-5173.euw.devtunnels.ms'
+    ],
     proxy: {
       '/api': {
         target: 'http://localhost:8000',

@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 from .models import (
     DocumentProcessingRequest,
     ProcessedContent,
-    ErrorResponse
+    ErrorResponse,
+    AnsweredQuestionPaper,
+    QuestionPaperDetection
 )
 from .document_processor import DocumentProcessor
 from .gemini_processor import GeminiProcessor
@@ -118,14 +120,18 @@ async def preview_document(
             # Estimate question count based on content length
             estimated_questions = min(max(5, word_count // 100), 20)
             
-            logger.info(f"Document preview generated: {word_count} words, {page_count} pages")
+            # Detect if this is a question paper
+            question_paper_detection = gemini_processor.detect_question_paper(document_text)
+            
+            logger.info(f"Document preview generated: {word_count} words, {page_count} pages, is_question_paper={question_paper_detection.get('is_question_paper')}")
             
             return {
                 "text": preview_text,
                 "wordCount": word_count,
                 "pageCount": page_count,
                 "estimatedTopics": estimated_topics,
-                "estimatedQuestionCount": estimated_questions
+                "estimatedQuestionCount": estimated_questions,
+                "questionPaperDetection": question_paper_detection
             }
         except Exception as e:
             logger.error(f"Document preview failed: {str(e)}\n{traceback.format_exc()}")
@@ -220,6 +226,71 @@ async def process_document(
         except Exception as e:
             logger.error(f"AI processing failed: {str(e)}\n{traceback.format_exc()}")
             raise HTTPException(status_code=500, detail=f"AI processing failed: {str(e)}")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+@app.post("/api/answer-question-paper", response_model=AnsweredQuestionPaper)
+async def answer_question_paper(
+    file: UploadFile = File(...)
+):
+    """
+    Process a question paper and generate AI answers for all questions
+    """
+    try:
+        # Validate file
+        file_extension = file.filename.split('.')[-1].lower() if file.filename else ''
+        if file_extension not in settings.allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type not allowed. Allowed types: {', '.join(settings.allowed_extensions)}"
+            )
+        
+        # Read and validate file size
+        file_content = await file.read()
+        file_size = len(file_content)
+        max_size_bytes = settings.max_upload_size_mb * 1024 * 1024
+        if file_size > max_size_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Maximum size: {settings.max_upload_size_mb}MB"
+            )
+        
+        # Extract text from document
+        try:
+            logger.info(f"Processing question paper: {file.filename}")
+            document_text, page_count = document_processor.process_document(
+                file_content,
+                file_extension
+            )
+            logger.info(f"Question paper extracted: {page_count} pages, {len(document_text)} characters")
+        except Exception as e:
+            logger.error(f"Document processing failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Document processing failed: {str(e)}")
+        
+        # Detect if it's actually a question paper
+        detection_result = gemini_processor.detect_question_paper(document_text)
+        
+        if not detection_result.get("is_question_paper") or detection_result.get("confidence") == "low":
+            logger.warning(f"Document may not be a question paper: {detection_result.get('reason')}")
+            # Proceed anyway but log the warning
+        
+        # Generate answers
+        try:
+            logger.info("Generating AI answers for question paper...")
+            result = gemini_processor.answer_question_paper(
+                document_text,
+                file.filename,
+                detection_result
+            )
+            logger.info(f"Answers generated for {result.get('total_questions', 0)} questions")
+            return result
+        except Exception as e:
+            logger.error(f"Answer generation failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Answer generation failed: {str(e)}")
     
     except HTTPException:
         raise

@@ -20,6 +20,74 @@ class GeminiProcessor:
         self.model = genai.GenerativeModel('gemini-2.0-flash')
         logger.info("Gemini processor initialized with model: gemini-2.0-flash")
     
+    def detect_question_paper(self, document_text: str) -> Dict[str, Any]:
+        """
+        Detect if the document is a question paper/exam/assignment
+        Returns: detection result with confidence and details
+        """
+        try:
+            detection_prompt = f"""Analyze the following text and determine if it is a question paper, exam, assignment, or practice test that contains questions requiring answers.
+
+TEXT TO ANALYZE:
+{document_text[:3000]}
+
+Respond with a JSON object:
+{{
+    "is_question_paper": true/false,
+    "confidence": "high|medium|low",
+    "question_count": <estimated number of questions>,
+    "exam_type": "midterm|final|assignment|practice|quiz|homework|null",
+    "subject": "<detected subject or null>",
+    "reason": "brief explanation of why this is/isn't a question paper"
+}}
+
+A question paper typically has:
+- Numbered questions (Q1, Question 1, 1., etc.)
+- Instructions like "Answer all questions" or "Total marks"
+- Question formats like "Explain...", "Describe...", "Calculate...", "Define..."
+- Marks allocation (e.g., "10 marks", "[5]")
+- Multiple distinct questions requiring answers
+
+NOT a question paper:
+- Textbooks or study materials explaining concepts
+- Lecture notes or summaries
+- Research papers or articles
+- General educational content without explicit questions"""
+
+            logger.info("Detecting if document is a question paper...")
+            response = self.model.generate_content(detection_prompt)
+            
+            if not response or not response.text:
+                logger.warning("Question paper detection returned empty response")
+                return {
+                    "is_question_paper": False,
+                    "confidence": "low",
+                    "question_count": 0,
+                    "reason": "Could not analyze document"
+                }
+            
+            # Parse response
+            result_text = response.text.strip()
+            # Remove markdown code blocks if present
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in result_text:
+                result_text = result_text.split("```")[1].split("```")[0].strip()
+            
+            result = json.loads(result_text)
+            logger.info(f"Question paper detection: is_question_paper={result.get('is_question_paper')}, confidence={result.get('confidence')}")
+            
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Question paper detection failed: {str(e)}")
+            return {
+                "is_question_paper": False,
+                "confidence": "low",
+                "question_count": 0,
+                "reason": f"Detection error: {str(e)}"
+            }
+    
     def validate_educational_content(self, document_text: str) -> tuple[bool, str]:
         """
         Validate if the document contains educational/academic content
@@ -39,7 +107,7 @@ Respond with a JSON object:
     "confidence": "high|medium|low"
 }}
 
-Educational content includes: textbooks, lecture notes, research papers, study guides, educational articles, course materials, etc.
+Educational content includes: textbooks, lecture notes, research papers, study guides, educational articles, course materials, question papers, exams, etc.
 Non-educational content includes: receipts, personal photos, menus, advertisements, shopping lists, personal messages, etc."""
 
             logger.info("Validating content type...")
@@ -166,6 +234,22 @@ PAGE COUNT: {page_count}
    
 """
             
+            # Multi-Select Questions (NEW - for comprehensive assessments)
+            # Generate 2-3 multi-select questions for comprehensive quiz types
+            if analysis_depth in ['detailed', 'comprehensive']:
+                multi_select_count = 3 if analysis_depth == 'comprehensive' else 2
+                prompt += f"""1b. MULTI-SELECT QUESTIONS ({multi_select_count} questions):
+   These are "select all that apply" type questions with multiple correct answers.
+   Format as JSON array with structure:
+   [{{"question": "Which of the following are characteristics of... (Select all that apply)", "options": ["A", "B", "C", "D", "E"], "correct_answers": [0, 2, 3], "explanation": "...", "difficulty": "{mc_config.difficulty}", "marks": 10, "page_reference": 1, "topic": "Topic Name"}}]
+   Note: 
+   - correct_answers is an ARRAY of indices (e.g., [0, 2] means options A and C are correct)
+   - Include 4-6 options with 2-4 correct answers
+   - Add a 'marks' field (typically 5-15 marks based on complexity)
+   - These questions test deeper understanding and ability to identify multiple related concepts
+   
+"""
+            
             # True/False Questions
             tf_config = request.output_preferences.content_types.questions.types.true_false
             if tf_config.enabled:
@@ -221,6 +305,7 @@ PAGE COUNT: {page_count}
 IMPORTANT: Return ONLY valid JSON in this exact structure:
 {
   "multiple_choice_questions": [...],
+  "multi_select_questions": [...],
   "true_false_questions": [...],
   "short_answer_questions": [...],
   "flashcards": [...],
@@ -252,6 +337,7 @@ Do not include any markdown formatting, code blocks, or extra text. Return raw J
             # Ensure all required fields exist
             result = {
                 "multiple_choice_questions": data.get("multiple_choice_questions", []),
+                "multi_select_questions": data.get("multi_select_questions", []),
                 "true_false_questions": data.get("true_false_questions", []),
                 "short_answer_questions": data.get("short_answer_questions", []),
                 "flashcards": data.get("flashcards", []),
@@ -266,6 +352,7 @@ Do not include any markdown formatting, code blocks, or extra text. Return raw J
             # If JSON parsing fails, create a basic response
             return {
                 "multiple_choice_questions": [],
+                "multi_select_questions": [],
                 "true_false_questions": [],
                 "short_answer_questions": [],
                 "flashcards": [],
@@ -273,3 +360,102 @@ Do not include any markdown formatting, code blocks, or extra text. Return raw J
                 "summary": "Error parsing AI response. Please try again.",
                 "key_terms": []
             }
+    
+    def answer_question_paper(
+        self,
+        document_text: str,
+        document_title: str,
+        detection_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Generate AI answers for questions in a question paper"""
+        
+        if not document_text or len(document_text.strip()) < 50:
+            raise ValueError("Document text is too short or empty.")
+        
+        exam_type = detection_result.get("exam_type", "exam")
+        subject = detection_result.get("subject", "the given subject")
+        question_count = detection_result.get("question_count", "all")
+        
+        prompt = f"""You are an expert academic tutor. The following document is a {exam_type} with questions that need detailed, comprehensive answers.
+
+QUESTION PAPER:
+{document_text}
+
+Your task is to:
+1. Identify each question in the document (look for numbered questions, Q1, Question 1, 1., etc.)
+2. Extract the question text and any mark allocation
+3. Provide a thorough, well-structured answer for each question
+4. Include key points and important concepts in your answer
+
+For each question, provide:
+- Clear, accurate answers based on {subject} knowledge
+- Well-organized responses with proper formatting
+- Key concepts and important points highlighted
+- Detailed explanations where appropriate
+
+Respond with ONLY valid JSON in this structure:
+{{
+    "exam_type": "{exam_type}",
+    "subject": "{subject}",
+    "total_questions": {question_count},
+    "questions_with_answers": [
+        {{
+            "question_number": "1" or "Q1" or "1a",
+            "question_text": "The full question text...",
+            "marks": 10,
+            "ai_generated_answer": "Comprehensive answer here...",
+            "key_points": ["Key point 1", "Key point 2", ...],
+            "page_reference": 1
+        }}
+    ],
+    "general_instructions": "Any general instructions found in the paper",
+    "summary": "Brief overview of the exam topics and coverage"
+}}
+
+IMPORTANT GUIDELINES:
+- Extract ALL questions from the document
+- Provide thorough, academically sound answers
+- Structure answers with proper paragraphs and bullet points where appropriate
+- Include relevant examples and explanations
+- If a question has sub-parts (a, b, c), treat each as a separate question or combine logically
+- Return ONLY valid JSON, no markdown formatting or code blocks"""
+
+        try:
+            logger.info(f"Generating answers for question paper with approximately {question_count} questions...")
+            response = self.model.generate_content(prompt)
+            
+            if not response or not response.text:
+                raise ValueError("Failed to generate answers from AI")
+            
+            # Parse response
+            result_text = response.text.strip()
+            # Remove markdown code blocks if present
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in result_text:
+                result_text = result_text.split("```")[1].split("```")[0].strip()
+            
+            data = json.loads(result_text)
+            
+            # Ensure all required fields have proper defaults
+            data["session_id"] = str(uuid.uuid4())
+            data["timestamp"] = datetime.now().isoformat()
+            data["document_title"] = document_title
+            data["general_instructions"] = data.get("general_instructions") or ""
+            data["summary"] = data.get("summary") or ""
+            data["exam_type"] = data.get("exam_type")
+            data["subject"] = data.get("subject")
+            data["total_questions"] = data.get("total_questions", len(data.get("questions_with_answers", [])))
+            
+            # Ensure questions_with_answers have proper defaults
+            for question in data.get("questions_with_answers", []):
+                question["key_points"] = question.get("key_points") or []
+                question["marks"] = question.get("marks")
+                question["page_reference"] = question.get("page_reference")
+            
+            logger.info(f"Successfully generated answers for {len(data.get('questions_with_answers', []))} questions")
+            return data
+            
+        except Exception as e:
+            logger.error(f"Failed to answer question paper: {str(e)}")
+            raise ValueError(f"Failed to generate answers: {str(e)}")

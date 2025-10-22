@@ -24,6 +24,7 @@ const Results = () => {
     
     const allQuestions = [
       ...(processedContent.multiple_choice_questions || []),
+      ...(processedContent.multi_select_questions || []),
       ...(processedContent.true_false_questions || []),
     ]
 
@@ -197,9 +198,12 @@ const Results = () => {
             {incorrectAnswers.map((answer, idx) => {
               const allQuestions = [
                 ...(processedContent.multiple_choice_questions || []),
+                ...(processedContent.multi_select_questions || []),
                 ...(processedContent.true_false_questions || []),
               ]
               const question = allQuestions[answer.questionIndex]
+              
+              if (!question) return null
               
               return (
                 <div key={idx} className="bg-white rounded-lg p-6 border-2 border-gray-200">
@@ -217,6 +221,8 @@ const Results = () => {
                           <strong className="text-brand-green">Correct Answer:</strong>{' '}
                           {answer.questionType === 'multiple_choice' 
                             ? (question as any).options[(question as any).correct_answer]
+                            : answer.questionType === 'multi_select'
+                            ? (question as any).correct_answers?.map((idx: number) => (question as any).options[idx]).join(', ')
                             : (question as any).correct_answer ? 'True' : 'False'}
                         </p>
                       </div>

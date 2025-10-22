@@ -9,7 +9,7 @@ import { DocumentProcessingRequest } from '../types'
 
 const Home = () => {
   const navigate = useNavigate()
-  const { setProcessedContent, setLoading, setError, isLoading, error, quizType, setQuizType, documentPreview, setDocumentPreview } = useStore()
+  const { setProcessedContent, setAnsweredQuestionPaper, setLoading, setError, isLoading, error, quizType, setQuizType, documentPreview, setDocumentPreview } = useStore()
   const [config, setConfig] = useState<DocumentProcessingRequest>(defaultConfig)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -66,6 +66,26 @@ const Home = () => {
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || error.message || 'Failed to process document. Please try again.'
       console.error('Upload error:', error)
+      setError(errorMessage)
+      setLoading(false)
+    }
+  }
+
+  const handleAnswerQuestions = async () => {
+    if (!selectedFile) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const { answerQuestionPaper } = await import('../services/api')
+      const result = await answerQuestionPaper(selectedFile)
+      setAnsweredQuestionPaper(result)
+      setLoading(false)
+      navigate('/answered-questions')
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to generate answers. Please try again.'
+      console.error('Answer generation error:', error)
       setError(errorMessage)
       setLoading(false)
     }
@@ -238,23 +258,99 @@ const Home = () => {
             </div>
           </div>
 
-          <button
-            onClick={handleGenerateQuiz}
-            disabled={isLoading}
-            className="w-full bg-gradient-brand text-white py-4 rounded-xl font-bold text-lg hover:shadow-glow-blue transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transform hover:scale-[1.02]"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-6 h-6 animate-spin" />
-                <span>Generating Study Materials...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-5 h-5" />
-                <span>Generate {quizType === 'quick' ? 'Quick' : quizType === 'standard' ? 'Standard' : 'Comprehensive'} Quiz</span>
-              </>
-            )}
-          </button>
+          {/* Question Paper Detection Alert */}
+          {documentPreview.questionPaperDetection?.is_question_paper && 
+           documentPreview.questionPaperDetection.confidence !== 'low' && (
+            <div className="mb-6 bg-gradient-to-r from-brand-purple-light to-brand-blue-light border-2 border-brand-purple rounded-2xl p-6 animate-slideIn">
+              <div className="flex items-start space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-brand-purple to-brand-blue rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                  <AlertCircle className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-lg font-bold text-primary-black mb-2">
+                    🎯 Question Paper Detected!
+                  </h4>
+                  <p className="text-sm text-secondary-black mb-3">
+                    {documentPreview.questionPaperDetection.reason}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {documentPreview.questionPaperDetection.exam_type && (
+                      <span className="px-3 py-1 bg-white rounded-lg text-sm font-semibold text-brand-purple shadow-sm">
+                        📋 {documentPreview.questionPaperDetection.exam_type}
+                      </span>
+                    )}
+                    {documentPreview.questionPaperDetection.subject && (
+                      <span className="px-3 py-1 bg-white rounded-lg text-sm font-semibold text-brand-blue shadow-sm">
+                        📚 {documentPreview.questionPaperDetection.subject}
+                      </span>
+                    )}
+                    <span className="px-3 py-1 bg-white rounded-lg text-sm font-semibold text-brand-green shadow-sm">
+                      ✓ {documentPreview.questionPaperDetection.question_count} questions
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-primary-black mb-3">
+                    Choose what you'd like to do:
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mode Selection Buttons */}
+          {documentPreview.questionPaperDetection?.is_question_paper && 
+           documentPreview.questionPaperDetection.confidence !== 'low' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <button
+                onClick={handleAnswerQuestions}
+                disabled={isLoading}
+                className="group p-6 rounded-2xl border-2 border-brand-purple bg-gradient-to-br from-brand-purple-light to-white hover:shadow-glow-purple transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+              >
+                <div className="flex items-center space-x-4 mb-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-brand-purple to-brand-blue rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                    <CheckCircle className="w-6 h-6 text-white" />
+                  </div>
+                  <h5 className="text-lg font-bold text-primary-black">Get AI Answers</h5>
+                </div>
+                <p className="text-sm text-secondary-black">
+                  Let AI provide detailed answers to all questions in this paper
+                </p>
+              </button>
+
+              <button
+                onClick={handleGenerateQuiz}
+                disabled={isLoading}
+                className="group p-6 rounded-2xl border-2 border-brand-blue bg-gradient-to-br from-brand-blue-light to-white hover:shadow-glow-blue transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+              >
+                <div className="flex items-center space-x-4 mb-3">
+                  <div className="w-12 h-12 bg-gradient-brand rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                    <BookOpen className="w-6 h-6 text-white" />
+                  </div>
+                  <h5 className="text-lg font-bold text-primary-black">Generate Study Materials</h5>
+                </div>
+                <p className="text-sm text-secondary-black">
+                  Create quiz, flashcards, and notes from this content
+                </p>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleGenerateQuiz}
+              disabled={isLoading}
+              className="w-full bg-gradient-brand text-white py-4 rounded-xl font-bold text-lg hover:shadow-glow-blue transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transform hover:scale-[1.02]"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  <span>Generating Study Materials...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  <span>Generate {quizType === 'quick' ? 'Quick' : quizType === 'standard' ? 'Standard' : 'Comprehensive'} Quiz</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       )}
 

@@ -96,6 +96,16 @@ class MultipleChoiceQuestion(BaseModel):
     page_reference: Optional[int] = None
     topic: Optional[str] = None
 
+class MultiSelectQuestion(BaseModel):
+    question: str
+    options: List[str]
+    correct_answers: List[int]  # Multiple correct answer indices
+    explanation: str
+    difficulty: str
+    marks: Optional[int] = None
+    page_reference: Optional[int] = None
+    topic: Optional[str] = None
+
 class TrueFalseQuestion(BaseModel):
     question: str
     correct_answer: bool
@@ -119,6 +129,7 @@ class ProcessedContent(BaseModel):
     session_id: str
     timestamp: datetime
     multiple_choice_questions: List[MultipleChoiceQuestion] = []
+    multi_select_questions: List[MultiSelectQuestion] = []
     true_false_questions: List[TrueFalseQuestion] = []
     short_answer_questions: List[ShortAnswerQuestion] = []
     flashcards: List[Flashcard] = []
@@ -129,3 +140,31 @@ class ProcessedContent(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
+
+# Question Paper Detection Models
+class QuestionPaperDetection(BaseModel):
+    is_question_paper: bool
+    confidence: Literal["high", "medium", "low"]
+    question_count: int = 0
+    exam_type: Optional[str] = None  # e.g., "midterm", "final", "assignment", "practice"
+    subject: Optional[str] = None
+    reason: str = ""
+
+class QuestionWithAnswer(BaseModel):
+    question_number: str  # e.g., "1", "1a", "Q1"
+    question_text: str
+    marks: Optional[int] = None
+    ai_generated_answer: str
+    key_points: List[str] = []
+    page_reference: Optional[int] = None
+
+class AnsweredQuestionPaper(BaseModel):
+    session_id: str
+    timestamp: datetime
+    document_title: str
+    exam_type: Optional[str] = None
+    subject: Optional[str] = None
+    total_questions: int
+    questions_with_answers: List[QuestionWithAnswer] = []
+    general_instructions: str = ""
+    summary: str = ""

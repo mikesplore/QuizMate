@@ -50,4 +50,17 @@ export const getSupportedFormats = async (): Promise<{ formats: string[]; max_si
   return response.data
 }
 
+export const answerQuestionPaper = async (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await api.post('/api/answer-question-paper', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+
+  return response.data
+}
+
 export default api

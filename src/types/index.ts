@@ -103,6 +103,17 @@ export interface MultipleChoiceQuestion {
   topic?: string
 }
 
+export interface MultiSelectQuestion {
+  question: string
+  options: string[]
+  correct_answers: number[] // Multiple correct answer indices
+  explanation: string
+  difficulty: string
+  marks?: number // Optional marks field for questions
+  page_reference?: number
+  topic?: string
+}
+
 export interface TrueFalseQuestion {
   question: string
   correct_answer: boolean
@@ -129,6 +140,7 @@ export interface ProcessedContent {
   session_id: string
   timestamp: string
   multiple_choice_questions: MultipleChoiceQuestion[]
+  multi_select_questions: MultiSelectQuestion[]
   true_false_questions: TrueFalseQuestion[]
   short_answer_questions: ShortAnswerQuestion[]
   flashcards: Flashcard[]
@@ -139,7 +151,7 @@ export interface ProcessedContent {
 
 export interface QuizAnswer {
   questionIndex: number
-  questionType: 'multiple_choice' | 'true_false' | 'short_answer'
+  questionType: 'multiple_choice' | 'multi_select' | 'true_false' | 'short_answer'
   userAnswer: any
   isCorrect?: boolean
   timeTaken?: number // in seconds
@@ -169,4 +181,36 @@ export interface DocumentPreview {
   pageCount: number
   estimatedTopics: string[]
   estimatedQuestionCount: number
+  questionPaperDetection?: QuestionPaperDetection
+}
+
+// Question Paper Detection Types
+export interface QuestionPaperDetection {
+  is_question_paper: boolean
+  confidence: 'high' | 'medium' | 'low'
+  question_count: number
+  exam_type?: string // e.g., "midterm", "final", "assignment", "practice"
+  subject?: string
+  reason: string
+}
+
+export interface QuestionWithAnswer {
+  question_number: string // e.g., "1", "1a", "Q1"
+  question_text: string
+  marks?: number
+  ai_generated_answer: string
+  key_points: string[]
+  page_reference?: number
+}
+
+export interface AnsweredQuestionPaper {
+  session_id: string
+  timestamp: string
+  document_title: string
+  exam_type?: string
+  subject?: string
+  total_questions: number
+  questions_with_answers: QuestionWithAnswer[]
+  general_instructions: string
+  summary: string
 }

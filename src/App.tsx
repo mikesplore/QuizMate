@@ -5,6 +5,7 @@ import Quiz from './pages/Quiz'
 import Flashcards from './pages/Flashcards'
 import StudyNotes from './pages/StudyNotes'
 import Results from './pages/Results'
+import AnsweredQuestions from './pages/AnsweredQuestions'
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/flashcards" element={<Flashcards />} />
           <Route path="/study-notes" element={<StudyNotes />} />
           <Route path="/results" element={<Results />} />
+          <Route path="/answered-questions" element={<AnsweredQuestions />} />
         </Routes>
       </Layout>
     </Router>

@@ -50,7 +50,12 @@ class Settings:
 
         # CORS - allow either a JSON array or comma-separated string
         self.cors_origins: List[str] = _parse_list_env(
-            os.getenv("CORS_ORIGINS"), ["http://localhost:5173"]
+            os.getenv("CORS_ORIGINS"), [
+                "http://localhost:5173",
+                "https://d9783a22362a.ngrok-free.app",
+                "https://05sf7791-5173.euw.devtunnels.ms",
+                "https://05sf7791-8000.euw.devtunnels.ms",
+            ]
         )
 
         # Upload Configuration
