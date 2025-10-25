@@ -14,14 +14,14 @@ const Flashcards = () => {
   if (flashcards.length === 0) {
     return (
       <div className="text-center py-12">
-        <div className="bg-white rounded-2xl shadow-card p-12 max-w-md mx-auto">
-          <Sparkles className="w-16 h-16 text-brand-blue mx-auto mb-4" />
-          <p className="text-xl text-tertiary-black mb-6">
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-12 max-w-md mx-auto">
+          <Sparkles className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+          <p className="text-xl text-slate-600 mb-6">
             No flashcards available yet
           </p>
           <button
             onClick={() => navigate('/')}
-            className="px-8 py-3 bg-gradient-brand text-white rounded-lg hover:shadow-glow-blue transition-all duration-300 font-medium"
+            className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-semibold"
           >
             Upload Document
           </button>
@@ -50,19 +50,19 @@ const Flashcards = () => {
     <div className="max-w-5xl mx-auto">
       {/* Header */}
       <div className="text-center mb-8">
-        <h2 className="text-3xl sm:text-4xl font-bold text-primary-black mb-3 bg-gradient-brand bg-clip-text text-transparent">
+        <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-3">
           Flashcards
         </h2>
-        <p className="text-tertiary-black text-lg">
+        <p className="text-slate-600 text-lg">
           Card {currentIndex + 1} of {flashcards.length}
         </p>
       </div>
 
       {/* Progress Bar */}
       <div className="mb-8">
-        <div className="h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+        <div className="h-3 bg-slate-200 rounded-full overflow-hidden shadow-inner">
           <div
-            className="h-full bg-gradient-to-r from-brand-blue to-brand-purple transition-all duration-500 ease-out shadow-glow-blue"
+            className="h-full bg-blue-600 transition-all duration-500 ease-out"
             style={{ width: `${((currentIndex + 1) / flashcards.length) * 100}%` }}
           />
         </div>
@@ -90,7 +90,7 @@ const Flashcards = () => {
           >
             {/* Front of Card */}
             <div
-              className="absolute inset-0 bg-white rounded-2xl shadow-card-hover p-8 sm:p-12 flex flex-col items-center justify-center border-2 border-gray-100 group-hover:border-brand-blue transition-colors"
+              className="absolute inset-0 bg-white rounded-2xl shadow-lg p-8 sm:p-12 flex flex-col items-center justify-center border-2 border-slate-200 group-hover:border-blue-500 transition-colors"
               style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
@@ -99,15 +99,15 @@ const Flashcards = () => {
             >
               <div className="text-center w-full">
                 {currentCard.category && (
-                  <span className="inline-block px-4 py-2 bg-gradient-to-r from-brand-blue to-brand-purple text-white rounded-full text-sm font-semibold mb-6 shadow-lg">
+                  <span className="inline-block px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-sm font-semibold mb-6 shadow-sm">
                     {currentCard.category}
                   </span>
                 )}
                 <div className="space-y-6">
-                  <p className="text-2xl sm:text-3xl font-bold text-primary-black leading-relaxed">
+                  <p className="text-2xl sm:text-3xl font-bold text-slate-900 leading-relaxed">
                     {currentCard.front}
                   </p>
-                  <div className="flex items-center justify-center space-x-2 text-brand-blue opacity-60 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center justify-center space-x-2 text-blue-600 opacity-60 group-hover:opacity-100 transition-opacity">
                     <RotateCw className="w-5 h-5 animate-pulse" />
                     <span className="text-sm font-medium">Click to reveal answer</span>
                   </div>
@@ -117,7 +117,7 @@ const Flashcards = () => {
 
             {/* Back of Card */}
             <div
-              className="absolute inset-0 bg-gradient-to-br from-brand-blue via-brand-purple to-brand-blue rounded-2xl shadow-card-hover p-8 sm:p-12 flex items-center justify-center border-2 border-brand-purple"
+              className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl p-8 sm:p-12 flex items-center justify-center border-2 border-slate-700"
               style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
@@ -129,7 +129,7 @@ const Flashcards = () => {
                   <p className="text-2xl sm:text-3xl font-semibold text-white leading-relaxed">
                     {currentCard.back}
                   </p>
-                  <div className="flex items-center justify-center space-x-2 text-white/80 opacity-75">
+                  <div className="flex items-center justify-center space-x-2 text-slate-300 opacity-75">
                     <RotateCw className="w-5 h-5" />
                     <span className="text-sm font-medium">Click to flip back</span>
                   </div>
@@ -145,7 +145,7 @@ const Flashcards = () => {
         <button
           onClick={handlePrevious}
           disabled={currentIndex === 0}
-          className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-white border-2 border-gray-200 rounded-xl hover:border-brand-blue hover:shadow-card transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:shadow-none font-medium text-primary-black"
+          className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-white border-2 border-slate-200 rounded-xl hover:border-blue-500 hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-200 disabled:hover:shadow-none font-semibold text-slate-900"
         >
           <ChevronLeft className="w-5 h-5" />
           <span>Previous</span>
@@ -162,8 +162,8 @@ const Flashcards = () => {
               }}
               className={`flex-shrink-0 rounded-full transition-all duration-300 ${
                 index === currentIndex
-                  ? 'bg-gradient-brand w-10 h-3 shadow-glow-blue'
-                  : 'bg-gray-300 w-3 h-3 hover:bg-brand-blue'
+                  ? 'bg-blue-600 w-10 h-3 shadow-lg'
+                  : 'bg-slate-300 w-3 h-3 hover:bg-blue-400'
               }`}
               aria-label={`Go to card ${index + 1}`}
             />
@@ -173,7 +173,7 @@ const Flashcards = () => {
         <button
           onClick={handleNext}
           disabled={currentIndex === flashcards.length - 1}
-          className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-white border-2 border-gray-200 rounded-xl hover:border-brand-blue hover:shadow-card transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:shadow-none font-medium text-primary-black"
+          className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-white border-2 border-slate-200 rounded-xl hover:border-blue-500 hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-200 disabled:hover:shadow-none font-semibold text-slate-900"
         >
           <span>Next</span>
           <ChevronRight className="w-5 h-5" />
