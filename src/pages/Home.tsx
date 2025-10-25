@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Upload, FileText, Settings, Loader2, XCircle, AlertCircle, Zap, Clock, BookOpen, Eye, CheckCircle } from 'lucide-react'
+import { Upload, FileText, Settings, Loader2, XCircle, AlertCircle, Zap, Clock, BookOpen, CheckCircle, Trash2, Edit3 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { uploadDocument, previewDocument } from '../services/api'
 import { useStore } from '../store/useStore'
@@ -9,10 +9,13 @@ import { DocumentProcessingRequest } from '../types'
 
 const Home = () => {
   const navigate = useNavigate()
-  const { setProcessedContent, setAnsweredQuestionPaper, setLoading, setError, isLoading, error, quizType, setQuizType, documentPreview, setDocumentPreview } = useStore()
+  const { setProcessedContent, setAnsweredQuestionPaper, setLoading, setError, error, quizType, setQuizType, documentPreview, setDocumentPreview } = useStore()
   const [config, setConfig] = useState<DocumentProcessingRequest>(defaultConfig)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false)
+  const [isAnsweringQuestions, setIsAnsweringQuestions] = useState(false)
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return
@@ -20,6 +23,7 @@ const Home = () => {
     const file = acceptedFiles[0]
     setSelectedFile(file)
     setError(null)
+    setIsAnalyzing(true)
 
     try {
       // Get document preview
@@ -29,12 +33,15 @@ const Home = () => {
       const errorMessage = error.response?.data?.detail || error.message || 'Failed to preview document.'
       console.error('Preview error:', error)
       setError(errorMessage)
+    } finally {
+      setIsAnalyzing(false)
     }
   }, [setError, setDocumentPreview])
 
   const handleGenerateQuiz = async () => {
     if (!selectedFile) return
 
+    setIsGeneratingQuiz(true)
     setLoading(true)
     setError(null)
 
@@ -62,18 +69,21 @@ const Home = () => {
       const result = await uploadDocument(selectedFile, updatedConfig)
       setProcessedContent(result)
       setLoading(false)
+      setIsGeneratingQuiz(false)
       navigate('/quiz')
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || error.message || 'Failed to process document. Please try again.'
       console.error('Upload error:', error)
       setError(errorMessage)
       setLoading(false)
+      setIsGeneratingQuiz(false)
     }
   }
 
   const handleAnswerQuestions = async () => {
     if (!selectedFile) return
 
+    setIsAnsweringQuestions(true)
     setLoading(true)
     setError(null)
 
@@ -82,13 +92,22 @@ const Home = () => {
       const result = await answerQuestionPaper(selectedFile)
       setAnsweredQuestionPaper(result)
       setLoading(false)
+      setIsAnsweringQuestions(false)
       navigate('/answered-questions')
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || error.message || 'Failed to generate answers. Please try again.'
       console.error('Answer generation error:', error)
       setError(errorMessage)
       setLoading(false)
+      setIsAnsweringQuestions(false)
     }
+  }
+
+  const handleRemoveDocument = () => {
+    setSelectedFile(null)
+    setDocumentPreview(null)
+    setError(null)
+    setIsAnalyzing(false)
   }
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -101,39 +120,32 @@ const Home = () => {
       'image/jpeg': ['.jpg', '.jpeg'],
     },
     maxFiles: 1,
-    disabled: isLoading,
+    disabled: isGeneratingQuiz || isAnsweringQuestions,
   })
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="text-center mb-10">
-        <h2 className="text-4xl sm:text-5xl font-bold text-primary-black mb-4">
+    <div className="max-w-7xl mx-auto">
+      {/* Hero Section */}
+      <div className="text-center mb-12">
+        <h2 className="text-4xl sm:text-5xl font-bold text-slate-900 mb-4">
           Transform Your Documents into Study Materials
         </h2>
-        <p className="text-lg sm:text-xl text-secondary-black max-w-2xl mx-auto mb-4">
+        <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto">
           Upload any document and let AI generate quizzes, flashcards, and study notes
         </p>
-  <div className="max-w-2xl mx-auto bg-brand-blue-light rounded-xl p-4 text-left">
-          <p className="text-sm text-secondary-black mb-2">
-            <span className="font-semibold text-brand-blue">📚 Accepted Content:</span> Textbooks, lecture notes, research papers, study guides, educational articles, course materials
-          </p>
-          <p className="text-sm text-gray-600">
-            <span className="font-semibold text-brand-red">❌ Not Suitable:</span> Receipts, personal photos, menus, advertisements, shopping lists
-          </p>
-        </div>
       </div>
 
       {/* Error Alert */}
       {error && (
-        <div className="mb-6 bg-gradient-to-r from-brand-red-light to-red-100 border-2 border-brand-red rounded-2xl p-5 shadow-card animate-shake">
+        <div className="mb-6 bg-red-50 border-2 border-red-200 rounded-xl p-5 shadow-sm">
           <div className="flex items-start space-x-3">
-            <AlertCircle className="w-6 h-6 text-brand-red flex-shrink-0 mt-0.5" />
+            <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-brand-red mb-1">Processing Failed</h3>
-              <p className="text-gray-700 mb-3">{error}</p>
+              <h3 className="text-lg font-semibold text-red-900 mb-1">Processing Failed</h3>
+              <p className="text-slate-700 mb-3">{error}</p>
               <button
                 onClick={() => setError(null)}
-                className="flex items-center space-x-2 px-4 py-2 bg-brand-red text-white rounded-lg hover:bg-brand-red-dark transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg"
+                className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 text-sm font-medium"
               >
                 <XCircle className="w-4 h-4" />
                 <span>Dismiss</span>
@@ -143,221 +155,222 @@ const Home = () => {
         </div>
       )}
 
-      {/* Upload Area */}
-      <div
-        {...getRootProps()}
-        className={`relative border-3 border-dashed rounded-2xl p-12 sm:p-16 text-center cursor-pointer transition-all duration-300 ${
-          isDragActive
-            ? 'border-4 border-dashed border-brand-blue bg-brand-blue-light shadow-glow-blue scale-[1.02]'
-            : 'border-4 border-dashed border-primary-black hover:border-brand-blue bg-white hover:bg-brand-blue-light/30 hover:shadow-card-hover'
-        } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        <input {...getInputProps()} />
-        <div className="flex flex-col items-center space-y-5">
-          {isLoading ? (
-            <>
-              <div className="relative">
-                <Loader2 className="w-20 h-20 text-brand-blue animate-spin" />
-                <div className="absolute inset-0 w-20 h-20 bg-brand-blue rounded-full opacity-20 animate-pulse" />
-              </div>
-              <p className="text-xl font-semibold text-primary-black">Processing your document...</p>
-              <p className="text-sm text-tertiary-black">This may take a minute ☕</p>
-            </>
-          ) : (
-            <>
-              <div className="relative">
-                <Upload className="w-20 h-20 text-brand-blue" />
-                <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-brand-green rounded-full flex items-center justify-center shadow-lg">
-                  <span className="text-white text-xl">+</span>
+      {/* Upload Section */}
+      {!documentPreview && !isAnalyzing && (
+        <div
+          {...getRootProps()}
+          className={`bg-white rounded-2xl shadow-lg border-2 border-dashed transition-all duration-300 p-12 sm:p-16 text-center cursor-pointer mb-12 ${
+            isDragActive
+              ? 'border-slate-400 bg-slate-50'
+              : 'border-slate-300 hover:border-slate-400'
+          } ${isGeneratingQuiz || isAnsweringQuestions ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          <input {...getInputProps()} />
+          <div className="flex flex-col items-center space-y-5">
+            {isGeneratingQuiz || isAnsweringQuestions ? (
+              <>
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-100 rounded-full">
+                  <Loader2 className="w-8 h-8 text-slate-700 animate-spin" />
                 </div>
-              </div>
-              <div>
-                <p className="text-xl font-semibold text-primary-black mb-2">
-                  {isDragActive ? '📁 Drop your file here' : '📤 Drag & drop a file or click to browse'}
-                </p>
-                <p className="text-sm text-tertiary-black">
+                <h3 className="text-xl font-semibold text-slate-900">Processing your document...</h3>
+                <p className="text-sm text-slate-600">This may take a minute ☕</p>
+              </>
+            ) : (
+              <>
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-100 rounded-full">
+                  <Upload className="w-8 h-8 text-slate-700" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-900 mb-2">
+                  {isDragActive ? 'Drop your file here' : 'Drag & drop a file or click to browse'}
+                </h3>
+                <p className="text-slate-600 mb-4">
                   Supported: PDF, DOCX, TXT, PNG, JPG • Max 50MB
                 </p>
-              </div>
-            </>
-          )}
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 text-sm">
+                  <div className="flex items-center gap-2 text-emerald-600">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Textbooks, lecture notes, research papers</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-red-600">
+                    <XCircle className="w-4 h-4" />
+                    <span>Receipts, personal photos, ads</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Analyzing Placeholder */}
+      {isAnalyzing && selectedFile && (
+        <div className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200 mb-12 animate-pulse">
+          <div className="flex items-start space-x-4 mb-6">
+            <div className="p-3 bg-slate-100 rounded-xl">
+              <Loader2 className="w-8 h-8 text-slate-700 animate-spin" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-xl text-slate-900 mb-2">
+                Analyzing Document...
+              </h3>
+              <p className="text-slate-600 font-medium mb-4">{selectedFile.name}</p>
+              <div className="space-y-2">
+                <div className="h-4 bg-slate-100 rounded w-3/4"></div>
+                <div className="h-4 bg-slate-100 rounded w-1/2"></div>
+                <div className="h-4 bg-slate-100 rounded w-2/3"></div>
+              </div>
+            </div>
+          </div>
+          <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+            <div className="space-y-3">
+              <div className="h-3 bg-slate-200 rounded w-full"></div>
+              <div className="h-3 bg-slate-200 rounded w-5/6"></div>
+              <div className="h-3 bg-slate-200 rounded w-4/5"></div>
+              <div className="h-3 bg-slate-200 rounded w-full"></div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Document Preview */}
-      {documentPreview && (
-        <div className="mt-8 bg-gradient-to-br from-white to-brand-green-light rounded-2xl shadow-card-hover p-6 sm:p-8 border-2 border-brand-green animate-slideIn">
+      {documentPreview && selectedFile && (
+        <div className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200 mb-12">
           <div className="flex items-start justify-between mb-6">
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-brand-green to-brand-blue rounded-xl flex items-center justify-center shadow-lg">
-                <Eye className="w-6 h-6 text-white" />
+            <div className="flex items-start space-x-4 flex-1">
+              <div className="p-3 bg-slate-900 rounded-xl">
+                <FileText className="w-8 h-8 text-white" />
               </div>
-              <div>
-                <h3 className="text-xl font-bold text-primary-black">Document Preview</h3>
-                <p className="text-sm text-tertiary-black truncate max-w-xs sm:max-w-md">
-                  📄 {selectedFile?.name}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setDocumentPreview(null)
-                setSelectedFile(null)
-              }}
-              className="text-gray-400 hover:text-brand-red transition-all hover:scale-110 p-2 hover:bg-red-50 rounded-lg"
-            >
-              <XCircle className="w-6 h-6" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100 hover:border-brand-blue transition-colors">
-              <p className="text-xs text-gray-500 mb-1 font-medium">Word Count</p>
-              <p className="text-2xl font-bold bg-gradient-brand bg-clip-text text-transparent">{documentPreview.wordCount.toLocaleString()}</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100 hover:border-brand-blue transition-colors">
-              <p className="text-xs text-gray-500 mb-1 font-medium">Pages</p>
-              <p className="text-2xl font-bold bg-gradient-brand bg-clip-text text-transparent">{documentPreview.pageCount}</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100 hover:border-brand-blue transition-colors">
-              <p className="text-xs text-gray-500 mb-1 font-medium">Est. Questions</p>
-              <p className="text-2xl font-bold bg-gradient-brand bg-clip-text text-transparent">{documentPreview.estimatedQuestionCount}</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100 hover:border-brand-blue transition-colors">
-              <p className="text-xs text-gray-500 mb-1 font-medium">Est. Time</p>
-              <p className="text-2xl font-bold bg-gradient-brand bg-clip-text text-transparent">
-                {quizType === 'quick' ? '5-10' : quizType === 'standard' ? '15-20' : '30-45'}min
-              </p>
-            </div>
-          </div>
-
-          {documentPreview.estimatedTopics.length > 0 && (
-            <div className="mb-6">
-              <p className="text-sm font-semibold text-primary-black mb-3 flex items-center">
-                <span className="mr-2">🏷️</span> Detected Topics:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {documentPreview.estimatedTopics.map((topic, idx) => (
-                  <span
-                    key={idx}
-                    className="px-4 py-2 bg-gradient-to-r from-brand-blue to-brand-purple text-white rounded-full text-sm font-semibold shadow-md hover:shadow-lg transition-all hover:scale-105"
-                  >
-                    {topic}
-                  </span>
-                ))}
+              <div className="flex-1">
+                <h3 className="font-bold text-xl text-slate-900 mb-1">
+                  Document Loaded
+                </h3>
+                <p className="text-slate-600 font-medium">{selectedFile.name}</p>
               </div>
             </div>
-          )}
-
-          <div className="mb-6">
-            <p className="text-sm font-semibold text-primary-black mb-3 flex items-center">
-              <span className="mr-2">📝</span> Content Preview:
-            </p>
-            <div className="bg-white rounded-xl p-5 max-h-48 overflow-y-auto shadow-inner border border-gray-200 scrollbar-thin scrollbar-thumb-brand-blue scrollbar-track-gray-100">
-              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{documentPreview.text}</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRemoveDocument}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm flex items-center gap-2"
+                title="Upload another document"
+              >
+                <Upload className="w-4 h-4" />
+                <span className="hidden sm:inline">Upload Another</span>
+              </button>
+              <button
+                onClick={handleRemoveDocument}
+                className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
+                title="Remove document"
+              >
+                <Trash2 className="w-5 h-5 text-slate-400 group-hover:text-red-600 transition-colors" />
+              </button>
             </div>
           </div>
-
-          {/* Question Paper Detection Alert */}
-          {documentPreview.questionPaperDetection?.is_question_paper && 
-           documentPreview.questionPaperDetection.confidence !== 'low' && (
-            <div className="mb-6 bg-gradient-to-r from-brand-purple-light to-brand-blue-light border-2 border-brand-purple rounded-2xl p-6 animate-slideIn">
-              <div className="flex items-start space-x-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-brand-purple to-brand-blue rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                  <AlertCircle className="w-6 h-6 text-white" />
+          
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center space-x-3 text-slate-700">
+              <div className="p-1.5 bg-slate-100 rounded-lg">
+                <FileText className="w-4 h-4 text-slate-700" />
+              </div>
+              <span className="font-semibold">Type:</span>
+              <span className="text-slate-600">{selectedFile.type || 'Unknown'}</span>
+            </div>
+            <div className="flex items-center space-x-3 text-slate-700">
+              <div className="p-1.5 bg-slate-100 rounded-lg">
+                <FileText className="w-4 h-4 text-slate-700" />
+              </div>
+              <span className="font-semibold">Size:</span>
+              <span className="text-slate-600">{(selectedFile.size / 1024).toFixed(2)} KB</span>
+            </div>
+            <div className="flex items-center space-x-3 text-slate-700">
+              <div className="p-1.5 bg-slate-100 rounded-lg">
+                <FileText className="w-4 h-4 text-slate-700" />
+              </div>
+              <span className="font-semibold">Words:</span>
+              <span className="text-slate-600">{documentPreview.wordCount.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center space-x-3 text-slate-700">
+              <div className="p-1.5 bg-slate-100 rounded-lg">
+                <FileText className="w-4 h-4 text-slate-700" />
+              </div>
+              <span className="font-semibold">Est. Questions:</span>
+              <span className="text-slate-600">{documentPreview.estimatedQuestionCount}</span>
+            </div>
+            {documentPreview.questionPaperDetection?.is_question_paper && (
+              <div className="flex items-center space-x-3 mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="p-1.5 bg-blue-100 rounded-lg">
+                  <CheckCircle className="w-4 h-4 text-blue-600" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-lg font-bold text-primary-black mb-2">
-                    🎯 Question Paper Detected!
-                  </h4>
-                  <p className="text-sm text-secondary-black mb-3">
-                    {documentPreview.questionPaperDetection.reason}
-                  </p>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {documentPreview.questionPaperDetection.exam_type && (
-                      <span className="px-3 py-1 bg-white rounded-lg text-sm font-semibold text-brand-purple shadow-sm">
-                        📋 {documentPreview.questionPaperDetection.exam_type}
-                      </span>
-                    )}
-                    {documentPreview.questionPaperDetection.subject && (
-                      <span className="px-3 py-1 bg-white rounded-lg text-sm font-semibold text-brand-blue shadow-sm">
-                        📚 {documentPreview.questionPaperDetection.subject}
-                      </span>
-                    )}
-                    <span className="px-3 py-1 bg-white rounded-lg text-sm font-semibold text-brand-green shadow-sm">
-                      ✓ {documentPreview.questionPaperDetection.question_count} questions
-                    </span>
-                  </div>
-                  <p className="text-sm font-semibold text-primary-black mb-3">
-                    Choose what you'd like to do:
+                  <span className="font-semibold text-blue-900 text-sm">Question Paper Detected</span>
+                  <p className="text-xs text-blue-700 mt-0.5">
+                    Confidence: {documentPreview.questionPaperDetection.confidence}
                   </p>
                 </div>
               </div>
+            )}
+          </div>
+
+          {documentPreview.text && (
+            <div className="mt-6 p-5 bg-slate-50 rounded-xl border border-slate-200">
+              <h4 className="font-semibold text-slate-900 mb-3 flex items-center space-x-2">
+                <div className="p-1 bg-white rounded border border-slate-200">
+                  <FileText className="w-4 h-4 text-slate-700" />
+                </div>
+                <span>Preview</span>
+              </h4>
+              <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto">
+                {documentPreview.text.slice(0, 500)}...
+              </p>
             </div>
           )}
 
-          {/* Mode Selection Buttons */}
-          {documentPreview.questionPaperDetection?.is_question_paper && 
-           documentPreview.questionPaperDetection.confidence !== 'low' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <button
-                onClick={handleAnswerQuestions}
-                disabled={isLoading}
-                className="group p-6 rounded-2xl border-2 border-brand-purple bg-gradient-to-br from-brand-purple-light to-white hover:shadow-glow-purple transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
-              >
-                <div className="flex items-center space-x-4 mb-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-brand-purple to-brand-blue rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                    <CheckCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <h5 className="text-lg font-bold text-primary-black">Get AI Answers</h5>
-                </div>
-                <p className="text-sm text-secondary-black">
-                  Let AI provide detailed answers to all questions in this paper
-                </p>
-              </button>
-
-              <button
-                onClick={handleGenerateQuiz}
-                disabled={isLoading}
-                className="group p-6 rounded-2xl border-2 border-brand-blue bg-gradient-to-br from-brand-blue-light to-white hover:shadow-glow-blue transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
-              >
-                <div className="flex items-center space-x-4 mb-3">
-                  <div className="w-12 h-12 bg-gradient-brand rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                    <BookOpen className="w-6 h-6 text-white" />
-                  </div>
-                  <h5 className="text-lg font-bold text-primary-black">Generate Study Materials</h5>
-                </div>
-                <p className="text-sm text-secondary-black">
-                  Create quiz, flashcards, and notes from this content
-                </p>
-              </button>
-            </div>
-          ) : (
+          {/* Generate Button */}
+          <div className="mt-6 flex flex-col sm:flex-row gap-3">
             <button
               onClick={handleGenerateQuiz}
-              disabled={isLoading}
-              className="w-full bg-gradient-brand text-white py-4 rounded-xl font-bold text-lg hover:shadow-glow-blue transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transform hover:scale-[1.02]"
+              disabled={isGeneratingQuiz || isAnsweringQuestions}
+              className="flex-1 px-6 py-4 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
             >
-              {isLoading ? (
+              {isGeneratingQuiz ? (
                 <>
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  <span>Generating Study Materials...</span>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Processing...</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle className="w-5 h-5" />
-                  <span>Generate {quizType === 'quick' ? 'Quick' : quizType === 'standard' ? 'Standard' : 'Comprehensive'} Quiz</span>
+                  <FileText className="w-5 h-5" />
+                  <span>Generate Study Materials</span>
                 </>
               )}
             </button>
-          )}
+
+            {documentPreview.questionPaperDetection?.is_question_paper && (
+              <button
+                onClick={handleAnswerQuestions}
+                disabled={isGeneratingQuiz || isAnsweringQuestions}
+                className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+              >
+                {isAnsweringQuestions ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Answering Questions...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-5 h-5" />
+                    <span>Answer Questions</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
       {/* Quiz Type Selection */}
       {!documentPreview && (
         <div className="mt-10">
-          <h3 className="text-2xl font-bold text-primary-black mb-6 text-center">Choose Your Study Mode</h3>
+          <h3 className="text-2xl font-bold text-slate-900 mb-8 text-center">Choose Your Study Mode</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Quick Review */}
           <button
@@ -382,28 +395,28 @@ const Home = () => {
                 },
               })
             }}
-            className={`group p-6 rounded-2xl border-2 transition-all duration-300 text-left transform hover:scale-105 hover:shadow-card-hover ${
+            className={`group p-6 rounded-2xl border-2 transition-all duration-300 text-left hover:shadow-lg ${
               quizType === 'quick'
-                ? 'border-brand-blue bg-gradient-to-br from-brand-blue-light to-white shadow-glow-blue'
-                : 'border-gray-200 bg-white hover:border-brand-blue'
+                ? 'border-emerald-500 bg-emerald-50 shadow-md'
+                : 'border-slate-200 bg-white hover:border-emerald-300'
             }`}
           >
             <div className="flex items-start space-x-4">
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center shadow-lg transition-all ${
-                quizType === 'quick' ? 'bg-gradient-brand' : 'bg-gray-100 group-hover:bg-brand-blue'
+              <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${
+                quizType === 'quick' ? 'bg-emerald-600' : 'bg-slate-100 group-hover:bg-emerald-100'
               }`}>
-                <Zap className={`w-7 h-7 ${quizType === 'quick' ? 'text-white' : 'text-brand-blue group-hover:text-white'}`} />
+                <Zap className={`w-7 h-7 ${quizType === 'quick' ? 'text-white' : 'text-slate-700 group-hover:text-emerald-600'}`} />
               </div>
               <div className="flex-1">
-                <h4 className="text-xl font-bold text-primary-black mb-2 flex items-center">
+                <h4 className="text-xl font-bold text-slate-900 mb-2 flex items-center">
                   Quick Review
-                  {quizType === 'quick' && <span className="ml-2 text-brand-blue">✓</span>}
+                  {quizType === 'quick' && <CheckCircle className="ml-2 w-5 h-5 text-emerald-600" />}
                 </h4>
-                <p className="text-sm text-gray-600 mb-3">Perfect for a fast study session</p>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li className="flex items-center"><span className="mr-2">⚡</span> 5 Multiple Choice</li>
-                  <li className="flex items-center"><span className="mr-2">🎴</span> 10 Flashcards</li>
-                  <li className="flex items-center"><span className="mr-2">⏱️</span> ~5-10 minutes</li>
+                <p className="text-sm text-slate-600 mb-3">Perfect for a fast study session</p>
+                <ul className="text-sm text-slate-700 space-y-1.5">
+                  <li className="flex items-center"><Clock className="mr-2 w-4 h-4 text-slate-500" /> 5 Multiple Choice</li>
+                  <li className="flex items-center"><FileText className="mr-2 w-4 h-4 text-slate-500" /> 10 Flashcards</li>
+                  <li className="flex items-center"><span className="mr-2 text-slate-500">⏱️</span> ~5-10 minutes</li>
                 </ul>
               </div>
             </div>
@@ -432,29 +445,34 @@ const Home = () => {
                 },
               })
             }}
-            className={`group p-6 rounded-2xl border-2 transition-all duration-300 text-left transform hover:scale-105 hover:shadow-card-hover ${
+            className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 text-left hover:shadow-lg ${
               quizType === 'standard'
-                ? 'border-brand-green bg-gradient-to-br from-brand-green-light to-white shadow-glow-green'
-                : 'border-gray-200 bg-white hover:border-brand-green'
+                ? 'border-blue-500 bg-blue-50 shadow-md'
+                : 'border-slate-200 bg-white hover:border-blue-300'
             }`}
           >
+            {quizType !== 'standard' && (
+              <span className="absolute top-3 right-3 px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                Recommended
+              </span>
+            )}
             <div className="flex items-start space-x-4">
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center shadow-lg transition-all ${
-                quizType === 'standard' ? 'bg-gradient-to-br from-brand-green to-brand-blue' : 'bg-gray-100 group-hover:bg-brand-green'
+              <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${
+                quizType === 'standard' ? 'bg-blue-600' : 'bg-slate-100 group-hover:bg-blue-100'
               }`}>
-                <Clock className={`w-7 h-7 ${quizType === 'standard' ? 'text-white' : 'text-brand-green group-hover:text-white'}`} />
+                <Clock className={`w-7 h-7 ${quizType === 'standard' ? 'text-white' : 'text-slate-700 group-hover:text-blue-600'}`} />
               </div>
               <div className="flex-1">
-                <h4 className="text-xl font-bold text-primary-black mb-2 flex items-center">
+                <h4 className="text-xl font-bold text-slate-900 mb-2 flex items-center">
                   Standard Test
-                  {quizType === 'standard' && <span className="ml-2 text-brand-green">✓</span>}
+                  {quizType === 'standard' && <CheckCircle className="ml-2 w-5 h-5 text-blue-600" />}
                 </h4>
-                <p className="text-sm text-gray-600 mb-3">Comprehensive assessment</p>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li className="flex items-center"><span className="mr-2">📝</span> 10 Multiple Choice</li>
-                  <li className="flex items-center"><span className="mr-2">✓</span> 5 True/False</li>
-                  <li className="flex items-center"><span className="mr-2">🎴</span> 15 Flashcards</li>
-                  <li className="flex items-center"><span className="mr-2">⏱️</span> ~15-20 minutes</li>
+                <p className="text-sm text-slate-600 mb-3">Comprehensive assessment</p>
+                <ul className="text-sm text-slate-700 space-y-1.5">
+                  <li className="flex items-center"><FileText className="mr-2 w-4 h-4 text-slate-500" /> 10 Multiple Choice</li>
+                  <li className="flex items-center"><CheckCircle className="mr-2 w-4 h-4 text-slate-500" /> 5 True/False</li>
+                  <li className="flex items-center"><FileText className="mr-2 w-4 h-4 text-slate-500" /> 15 Flashcards</li>
+                  <li className="flex items-center"><span className="mr-2 text-slate-500">⏱️</span> ~15-20 minutes</li>
                 </ul>
               </div>
             </div>
@@ -484,30 +502,30 @@ const Home = () => {
                 },
               })
             }}
-            className={`group p-6 rounded-2xl border-2 transition-all duration-300 text-left transform hover:scale-105 hover:shadow-card-hover ${
+            className={`group p-6 rounded-2xl border-2 transition-all duration-300 text-left hover:shadow-lg ${
               quizType === 'comprehensive'
-                ? 'border-brand-purple bg-gradient-to-br from-brand-purple-light to-white shadow-lg'
-                : 'border-gray-200 bg-white hover:border-brand-purple'
+                ? 'border-amber-500 bg-amber-50 shadow-md'
+                : 'border-slate-200 bg-white hover:border-amber-300'
             }`}
           >
             <div className="flex items-start space-x-4">
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center shadow-lg transition-all ${
-                quizType === 'comprehensive' ? 'bg-gradient-to-br from-brand-purple to-brand-blue' : 'bg-gray-100 group-hover:bg-brand-purple'
+              <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${
+                quizType === 'comprehensive' ? 'bg-amber-600' : 'bg-slate-100 group-hover:bg-amber-100'
               }`}>
-                <BookOpen className={`w-7 h-7 ${quizType === 'comprehensive' ? 'text-white' : 'text-brand-purple group-hover:text-white'}`} />
+                <BookOpen className={`w-7 h-7 ${quizType === 'comprehensive' ? 'text-white' : 'text-slate-700 group-hover:text-amber-600'}`} />
               </div>
               <div className="flex-1">
-                <h4 className="text-xl font-bold text-primary-black mb-2 flex items-center">
+                <h4 className="text-xl font-bold text-slate-900 mb-2 flex items-center">
                   Deep Dive
-                  {quizType === 'comprehensive' && <span className="ml-2 text-brand-purple">✓</span>}
+                  {quizType === 'comprehensive' && <CheckCircle className="ml-2 w-5 h-5 text-amber-600" />}
                 </h4>
-                <p className="text-sm text-gray-600 mb-3">Full mastery preparation</p>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li className="flex items-center"><span className="mr-2">📝</span> 15 Multiple Choice</li>
-                  <li className="flex items-center"><span className="mr-2">✓</span> 10 True/False</li>
-                  <li className="flex items-center"><span className="mr-2">✍️</span> 8 Short Answer</li>
-                  <li className="flex items-center"><span className="mr-2">🎴</span> 20 Flashcards</li>
-                  <li className="flex items-center"><span className="mr-2">⏱️</span> ~30-45 minutes</li>
+                <p className="text-sm text-slate-600 mb-3">Full mastery preparation</p>
+                <ul className="text-sm text-slate-700 space-y-1.5">
+                  <li className="flex items-center"><FileText className="mr-2 w-4 h-4 text-slate-500" /> 15 Multiple Choice</li>
+                  <li className="flex items-center"><CheckCircle className="mr-2 w-4 h-4 text-slate-500" /> 10 True/False</li>
+                  <li className="flex items-center"><Edit3 className="mr-2 w-4 h-4 text-slate-500" /> 8 Short Answer</li>
+                  <li className="flex items-center"><FileText className="mr-2 w-4 h-4 text-slate-500" /> 20 Flashcards</li>
+                  <li className="flex items-center"><span className="mr-2 text-slate-500">⏱️</span> ~30-45 minutes</li>
                 </ul>
               </div>
             </div>
@@ -517,20 +535,20 @@ const Home = () => {
       )}
 
       {/* Configuration Section */}
-      <div className="mt-8 bg-white rounded-lg shadow-card p-6">
+      <div className="mt-8 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="flex items-center space-x-2 text-primary-black hover:text-brand-blue transition-colors"
+          className="flex items-center space-x-2 text-slate-900 hover:text-blue-600 transition-colors font-medium"
         >
           <Settings className="w-5 h-5" />
-          <span className="font-medium">Advanced Configuration</span>
+          <span>Advanced Configuration</span>
         </button>
 
         {showAdvanced && (
           <div className="mt-6 space-y-6">
             {/* Analysis Depth */}
             <div>
-              <label className="block text-sm font-medium text-primary-black mb-2">
+              <label className="block text-sm font-semibold text-slate-900 mb-2">
                 Analysis Depth
               </label>
               <select
@@ -544,7 +562,7 @@ const Home = () => {
                     },
                   })
                 }
-                className="w-full px-4 py-2 border border-tertiary-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-900"
               >
                 <option value="quick">Quick</option>
                 <option value="detailed">Detailed</option>
@@ -554,7 +572,7 @@ const Home = () => {
 
             {/* Tone */}
             <div>
-              <label className="block text-sm font-medium text-primary-black mb-2">Tone</label>
+              <label className="block text-sm font-semibold text-slate-900 mb-2">Tone</label>
               <select
                 value={config.customization.tone}
                 onChange={(e) =>
@@ -566,7 +584,7 @@ const Home = () => {
                     },
                   })
                 }
-                className="w-full px-4 py-2 border border-tertiary-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-900"
               >
                 <option value="formal">Formal</option>
                 <option value="casual">Casual</option>
@@ -577,7 +595,7 @@ const Home = () => {
             {/* Question Counts */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-primary-black mb-2">
+                <label className="block text-sm font-semibold text-slate-900 mb-2">
                   Multiple Choice
                 </label>
                 <input
@@ -606,11 +624,11 @@ const Home = () => {
                       },
                     })
                   }
-                  className="w-full px-4 py-2 border border-tertiary-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                  className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-900"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-primary-black mb-2">
+                <label className="block text-sm font-semibold text-slate-900 mb-2">
                   True/False
                 </label>
                 <input
@@ -639,11 +657,11 @@ const Home = () => {
                       },
                     })
                   }
-                  className="w-full px-4 py-2 border border-tertiary-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                  className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-900"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-primary-black mb-2">
+                <label className="block text-sm font-semibold text-slate-900 mb-2">
                   Flashcards
                 </label>
                 <input
@@ -666,7 +684,7 @@ const Home = () => {
                       },
                     })
                   }
-                  className="w-full px-4 py-2 border border-tertiary-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                  className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-900"
                 />
               </div>
             </div>

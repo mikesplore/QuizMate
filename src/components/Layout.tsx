@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { BookOpen, FileText, CreditCard, ClipboardList, BarChart3, Sparkles } from 'lucide-react'
+import { BookOpen, FileText, CreditCard, ClipboardList, BarChart3 } from 'lucide-react'
 
 interface LayoutProps {
   children: ReactNode
@@ -18,20 +18,19 @@ const Layout = ({ children }: LayoutProps) => {
   ]
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-secondary-white via-white to-brand-blue-light">
-      {/* Modern Header with Gradient */}
-      <header className="bg-gradient-brand shadow-lg sticky top-0 z-50 backdrop-blur-sm bg-opacity-95">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* Professional Header */}
+      <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
             {/* Logo */}
             <Link to="/" className="flex items-center space-x-2 sm:space-x-3 group">
-              <div className="relative">
-                <BookOpen className="w-8 h-8 sm:w-10 sm:h-10 text-primary-black group-hover:scale-110 transition-transform" />
-                <Sparkles className="w-4 h-4 text-brand-yellow absolute -top-1 -right-1 animate-pulse" />
+              <div className="bg-slate-900 p-2 rounded-lg group-hover:bg-slate-800 transition-colors">
+                <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-primary-black tracking-tight">QuizMate</h1>
-                <p className="text-xs text-secondary-black hidden sm:block">AI-Powered Learning</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900">QuizMate</h1>
+                <p className="text-xs text-slate-600 hidden sm:block">AI-Powered Learning</p>
               </div>
             </Link>
 
@@ -46,11 +45,11 @@ const Layout = ({ children }: LayoutProps) => {
                     to={item.path}
                     className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                       isActive
-                        ? 'bg-white/20 text-primary-black shadow-lg backdrop-blur-sm'
-                        : 'text-secondary-black hover:bg-white/10 hover:text-primary-black'
+                        ? 'bg-slate-900 text-white shadow-md'
+                        : 'text-slate-700 hover:bg-slate-100'
                     }`}
                   >
-                    <Icon className="w-4 h-4 text-primary-black" />
+                    <Icon className="w-4 h-4" />
                     <span className="text-sm">{item.label}</span>
                   </Link>
                 )
@@ -72,8 +71,8 @@ const Layout = ({ children }: LayoutProps) => {
                     to={item.path}
                     className={`flex flex-col items-center justify-center min-w-[70px] px-3 py-2 rounded-lg transition-all ${
                       isActive
-                        ? 'bg-white/20 text-primary-black'
-                        : 'text-white/70 hover:bg-white/10 hover:text-white'
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-700 hover:bg-slate-100'
                     }`}
                   >
                     <Icon className="w-5 h-5 mb-1" />
@@ -91,15 +90,13 @@ const Layout = ({ children }: LayoutProps) => {
         {children}
       </main>
 
-      {/* Modern Footer */}
-      <footer className="bg-primary-black text-white border-t border-secondary-black/20 mt-auto">
+      {/* Professional Footer */}
+      <footer className="bg-slate-900 text-white border-t border-slate-800 mt-auto">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0">
-            <div className="flex items-center space-x-2 text-sm text-gray-400">
-              <Sparkles className="w-4 h-4 text-brand-yellow" />
-              <p>Powered by Google Gemini 2.0 Flash <span className="mx-2">|</span> Developed by Mike</p>
-            </div>
-            <p className="text-sm text-gray-400">© 2025 QuizMate - All rights reserved</p>
+          <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0">
+            <p className="text-sm text-slate-400 text-center">
+              Powered by Google Gemini 2.0 Flash | Developed by Mike | © 2025 QuizMate - All rights reserved
+            </p>
           </div>
         </div>
       </footer>

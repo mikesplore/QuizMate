@@ -7,28 +7,32 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Modern color palette
-        'primary-black': '#0f172a',
-        'secondary-black': '#1e293b',
-        'tertiary-black': '#334155',
+        // Professional slate grays
+        'primary-black': '#0f172a',    // slate-900
+        'secondary-black': '#1e293b',   // slate-800
+        'tertiary-black': '#334155',    // slate-700
         'primary-white': '#ffffff',
-        'secondary-white': '#f8fafc',
-        'tertiary-white': '#e2e8f0',
+        'secondary-white': '#f8fafc',   // slate-50
+        'tertiary-white': '#e2e8f0',    // slate-200
         
-        // Vibrant accent colors
-        'brand-blue': '#3b82f6',
-        'brand-blue-hover': '#2563eb',
-        'brand-blue-light': '#dbeafe',
-        'brand-green': '#10b981',
-        'brand-green-dark': '#059669',
-        'brand-green-light': '#d1fae5',
-        'brand-red': '#ef4444',
-        'brand-red-dark': '#dc2626',
-        'brand-red-light': '#fee2e2',
-        'brand-purple': '#8b5cf6',
-        'brand-purple-light': '#ede9fe',
-        'brand-yellow': '#f59e0b',
-        'brand-yellow-light': '#fef3c7',
+        // Professional accent colors
+        'brand-blue': '#3b82f6',        // blue-500
+        'brand-blue-hover': '#2563eb',  // blue-600
+        'brand-blue-light': '#dbeafe',  // blue-50
+        'brand-green': '#10b981',       // emerald-500
+        'brand-green-dark': '#059669',  // emerald-600
+        'brand-green-light': '#d1fae5', // emerald-50
+        'brand-red': '#ef4444',         // red-500
+        'brand-red-dark': '#dc2626',    // red-600
+        'brand-red-light': '#fee2e2',   // red-50
+        'brand-purple': '#8b5cf6',      // violet-500
+        'brand-purple-light': '#ede9fe', // violet-50
+        'brand-yellow': '#f59e0b',      // amber-500
+        'brand-yellow-light': '#fef3c7', // amber-50
+        'brand-amber': '#f59e0b',       // amber-500
+        'brand-amber-light': '#fef3c7', // amber-50
+        'brand-emerald': '#10b981',     // emerald-500
+        'brand-emerald-light': '#d1fae5', // emerald-50
       },
       fontFamily: {
         'sans': ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
