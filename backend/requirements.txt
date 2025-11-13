@@ -20,6 +20,10 @@ pydantic-settings==2.6.1
 # CORS & Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+PyJWT==2.8.0
 
 # Utilities
 aiofiles==24.1.0
+youtube-transcript-api==0.6.2
+
+

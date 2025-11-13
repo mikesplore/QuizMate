@@ -2,8 +2,15 @@ import google.generativeai as genai
 from typing import Dict, Any
 import json
 import logging
-from .models import DocumentProcessingRequest, ProcessedContent
-from .config import settings
+try:
+    # Normal package import when running as a module (python -m backend.main)
+    from .models import DocumentProcessingRequest, ProcessedContent
+    from .config import settings
+except Exception:
+    # Fallback when running as a script directly (python main.py) where
+    # relative imports raise "attempted relative import with no known parent package"
+    from models import DocumentProcessingRequest, ProcessedContent
+    from config import settings
 from datetime import datetime
 import uuid
 
@@ -87,6 +94,49 @@ NOT a question paper:
                 "question_count": 0,
                 "reason": f"Detection error: {str(e)}"
             }
+    
+    def _get_exam_format_instructions(self, exam_format: str) -> str:
+        """
+        Get specific instructions based on African exam format
+        Based on prompt.json african_context_localization
+        """
+        format_instructions = {
+            "WAEC": """
+WAEC (West African Examinations Council) Format:
+- Structure: Multiple choice (objectives) section + Theory questions section
+- Timing: Strict time limits per section (typically 45 min objectives, 2 hours theory)
+- Question Style: Clear, direct questions testing both recall and application
+- Marking Scheme: Objective answers are 1 mark each, theory questions vary (5-15 marks)
+- Include practical application questions relevant to West African context
+- Theory questions should require detailed explanations and examples
+            """,
+            "KCSE": """
+KCSE (Kenya Certificate of Secondary Education) Format:
+- Structure: Multiple sections with varied question types (MCQ, short answer, essays)
+- Emphasis: Strong focus on practical application and problem-solving
+- Question Style: Context-based questions using real-world scenarios
+- Include questions that test analytical and critical thinking skills
+- Reference Kenyan context where appropriate (geography, currency, local examples)
+            """,
+            "MATRIC": """
+MATRIC (South African National Senior Certificate) Format:
+- Structure: Combination of MCQs and long-form questions
+- Standards: Aligned with South African curriculum (CAPS)
+- Question Style: Balance between recall (30%), application (50%), and analysis (20%)
+- Include questions at different cognitive levels (knowledge, comprehension, application, analysis)
+- Mark allocations clearly indicated for each question
+            """,
+            "GENERAL": """
+GENERAL African Academic Format:
+- Structure: Flexible format suitable for any African curriculum
+- Focus: Core concepts applicable across different educational systems
+- Question Style: Mix of objective and subjective questions
+- Culturally relevant: Use African currencies, geography, history where applicable
+- Clear language accessible to English second-language learners
+            """
+        }
+        
+        return format_instructions.get(exam_format, format_instructions["GENERAL"])
     
     def validate_educational_content(self, document_text: str) -> tuple[bool, str]:
         """
@@ -203,8 +253,15 @@ Non-educational content includes: receipts, personal photos, menus, advertisemen
         tone = request.customization.tone
         language = request.customization.language
         analysis_depth = request.processing_instructions.analysis_depth
+        exam_format = request.customization.exam_format
         
-        prompt = f"""You are an expert educational content creator. Analyze the following document and create comprehensive study materials in {language} with a {tone} tone.
+        # Get exam format specific instructions
+        exam_instructions = self._get_exam_format_instructions(exam_format)
+        
+        prompt = f"""You are an expert educational content creator specializing in African examination systems. Analyze the following document and create comprehensive study materials in {language} with a {tone} tone.
+
+EXAM FORMAT: {exam_format}
+{exam_instructions}
 
 DOCUMENT TEXT:
 {document_text}

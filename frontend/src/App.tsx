@@ -6,6 +6,8 @@ import Flashcards from './pages/Flashcards'
 import StudyNotes from './pages/StudyNotes'
 import Results from './pages/Results'
 import AnsweredQuestions from './pages/AnsweredQuestions'
+import Auth from './pages/Auth'
+import Dashboard from './pages/Dashboard'
 
 function App() {
   return (
@@ -13,6 +15,8 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/quiz" element={<Quiz />} />
           <Route path="/flashcards" element={<Flashcards />} />
           <Route path="/study-notes" element={<StudyNotes />} />

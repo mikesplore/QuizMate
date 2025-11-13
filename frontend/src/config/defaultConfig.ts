@@ -59,5 +59,6 @@ export const defaultConfig: DocumentProcessingRequest = {
     tone: 'encouraging',
     include_page_references: true,
     highlight_key_terms: true,
+    exam_format: 'GENERAL',
   },
 }

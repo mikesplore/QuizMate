@@ -1,12 +1,16 @@
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { Trophy, Target, CheckCircle, XCircle, RotateCcw, Clock, TrendingUp, BookOpen, AlertCircle, RefreshCw } from 'lucide-react'
-import { useMemo } from 'react'
-import { QuizStatistics } from '../types'
+import { useMemo, useEffect, useState } from 'react'
+import { QuizStatistics, PerformanceAnalysis, QuizAttemptRecord } from '../types'
+import { submitQuiz } from '../services/api'
+import PerformanceAnalytics from '../components/PerformanceAnalytics'
 
 const Results = () => {
   const navigate = useNavigate()
   const { quizState, processedContent, resetState } = useStore()
+  const [performanceAnalysis, setPerformanceAnalysis] = useState<PerformanceAnalysis | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Calculate statistics
   const statistics = useMemo((): QuizStatistics | null => {
@@ -54,6 +58,43 @@ const Results = () => {
       weakTopics,
     }
   }, [quizState, processedContent])
+
+  // Submit quiz for performance analysis
+  useEffect(() => {
+    const submitQuizResults = async () => {
+      if (!quizState || !processedContent || !statistics || performanceAnalysis) return
+
+      setIsSubmitting(true)
+      try {
+        const sessionId = processedContent.session_id || 'guest'
+        const difficulty = 'medium' // Could be from config
+        
+        const attempt: QuizAttemptRecord = {
+          session_id: sessionId,
+          topic: 'General Study',
+          difficulty: difficulty,
+          total_questions: quizState.answers.length,
+          correct_answers: quizState.answers.filter(a => a.isCorrect).length,
+          score_percentage: statistics.accuracy,
+          questions_by_topic: Object.fromEntries(
+            Object.entries(statistics.topicPerformance).map(([topic, perf]) => [
+              topic,
+              { correct: perf.correct, total: perf.total }
+            ])
+          )
+        }
+
+        const analysis = await submitQuiz(attempt)
+        setPerformanceAnalysis(analysis)
+      } catch (error) {
+        console.error('Failed to submit quiz for analysis:', error)
+      } finally {
+        setIsSubmitting(false)
+      }
+    }
+
+    submitQuizResults()
+  }, [quizState, processedContent, statistics, performanceAnalysis])
 
   if (!quizState || !processedContent || !statistics) {
     return (
@@ -237,6 +278,18 @@ const Results = () => {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Performance Analytics Section */}
+      {performanceAnalysis && (
+        <PerformanceAnalytics analysis={performanceAnalysis} />
+      )}
+
+      {isSubmitting && (
+        <div className="text-center py-8">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
+          <p className="text-gray-600 mt-2">Analyzing your performance...</p>
         </div>
       )}
 

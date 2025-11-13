@@ -2,14 +2,14 @@ import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Upload, FileText, Settings, Loader2, XCircle, AlertCircle, Zap, Clock, BookOpen, CheckCircle, Trash2, Edit3 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { uploadDocument, previewDocument } from '../services/api'
+import { uploadDocument, previewDocument, setChatContext } from '../services/api'
 import { useStore } from '../store/useStore'
 import { defaultConfig } from '../config/defaultConfig'
 import { DocumentProcessingRequest } from '../types'
 
 const Home = () => {
   const navigate = useNavigate()
-  const { setProcessedContent, setAnsweredQuestionPaper, setLoading, setError, error, quizType, setQuizType, documentPreview, setDocumentPreview } = useStore()
+  const { setProcessedContent, setAnsweredQuestionPaper, setLoading, setError, error, quizType, setQuizType, documentPreview, setDocumentPreview, user } = useStore()
   const [config, setConfig] = useState<DocumentProcessingRequest>(defaultConfig)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -66,8 +66,19 @@ const Home = () => {
         },
       }
 
-      const result = await uploadDocument(selectedFile, updatedConfig)
+      const result = await uploadDocument(selectedFile, updatedConfig, user?.user_id)
       setProcessedContent(result)
+      
+      // Set chat context for Q&A
+      if (documentPreview?.text) {
+        try {
+          await setChatContext(result.session_id, documentPreview.text, selectedFile.name)
+        } catch (chatError) {
+          console.error('Failed to set chat context:', chatError)
+          // Don't fail the whole process if chat context fails
+        }
+      }
+      
       setLoading(false)
       setIsGeneratingQuiz(false)
       navigate('/quiz')
@@ -89,8 +100,19 @@ const Home = () => {
 
     try {
       const { answerQuestionPaper } = await import('../services/api')
-      const result = await answerQuestionPaper(selectedFile)
+      const result = await answerQuestionPaper(selectedFile, user?.user_id)
       setAnsweredQuestionPaper(result)
+      
+      // Set chat context for Q&A
+      if (documentPreview?.text) {
+        try {
+          await setChatContext(result.session_id, documentPreview.text, selectedFile.name)
+        } catch (chatError) {
+          console.error('Failed to set chat context:', chatError)
+          // Don't fail the whole process if chat context fails
+        }
+      }
+      
       setLoading(false)
       setIsAnsweringQuestions(false)
       navigate('/answered-questions')
@@ -590,6 +612,34 @@ const Home = () => {
                 <option value="casual">Casual</option>
                 <option value="encouraging">Encouraging</option>
               </select>
+            </div>
+
+            {/* Exam Format */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-900 mb-2">
+                Exam Format (African Systems)
+              </label>
+              <select
+                value={config.customization.exam_format}
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    customization: {
+                      ...config.customization,
+                      exam_format: e.target.value as any,
+                    },
+                  })
+                }
+                className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-900"
+              >
+                <option value="GENERAL">General (Any African Curriculum)</option>
+                <option value="WAEC">WAEC (West African)</option>
+                <option value="KCSE">KCSE (Kenya)</option>
+                <option value="MATRIC">MATRIC (South Africa)</option>
+              </select>
+              <p className="text-xs text-slate-500 mt-1">
+                Questions will be formatted according to selected exam system
+              </p>
             </div>
 
             {/* Question Counts */}

@@ -77,6 +77,7 @@ class Customization(BaseModel):
     tone: Literal["formal", "casual", "encouraging"] = "encouraging"
     include_page_references: bool = True
     highlight_key_terms: bool = True
+    exam_format: Literal["WAEC", "KCSE", "MATRIC", "GENERAL"] = "GENERAL"
 
 class DocumentProcessingRequest(BaseModel):
     session_id: Optional[str] = None
@@ -168,3 +169,33 @@ class AnsweredQuestionPaper(BaseModel):
     questions_with_answers: List[QuestionWithAnswer] = []
     general_instructions: str = ""
     summary: str = ""
+
+# Performance Analysis Models
+class QuizAttemptRecord(BaseModel):
+    session_id: str
+    topic: str
+    difficulty: str
+    total_questions: int
+    correct_answers: int
+    score_percentage: float
+    questions_by_topic: dict = {}
+
+class PerformanceAnalysisResponse(BaseModel):
+    overall_score: float
+    accuracy_by_topic: dict
+    difficulty_progression: str
+    strengths: List[str]
+    areas_for_improvement: List[str]
+    recommended_actions: List[str]
+    next_difficulty: str
+    encouragement_message: str
+
+# Feedback Models
+class QuestionFeedback(BaseModel):
+    question_id: int
+    is_correct: bool
+    user_answer: str
+    correct_answer: str
+    feedback_message: str
+    explanation: str
+    related_concepts: Optional[List[str]] = None

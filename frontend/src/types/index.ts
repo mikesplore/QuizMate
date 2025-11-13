@@ -81,6 +81,7 @@ export interface Customization {
   tone: 'formal' | 'casual' | 'encouraging'
   include_page_references: boolean
   highlight_key_terms: boolean
+  exam_format: 'WAEC' | 'KCSE' | 'MATRIC' | 'GENERAL'
 }
 
 export interface DocumentProcessingRequest {
@@ -213,4 +214,144 @@ export interface AnsweredQuestionPaper {
   questions_with_answers: QuestionWithAnswer[]
   general_instructions: string
   summary: string
+}
+
+// Performance Analysis Types
+export interface QuizAttemptRecord {
+  session_id: string
+  topic: string
+  difficulty: string
+  total_questions: number
+  correct_answers: number
+  score_percentage: number
+  questions_by_topic: { [topic: string]: { correct: number; total: number } }
+}
+
+export interface PerformanceAnalysis {
+  overall_score: number
+  accuracy_by_topic: { [topic: string]: number }
+  difficulty_progression: string
+  strengths: string[]
+  areas_for_improvement: string[]
+  recommended_actions: string[]
+  next_difficulty: string
+  encouragement_message: string
+}
+
+// Feedback Types
+export interface QuestionFeedback {
+  is_correct: boolean
+  feedback_message: string
+  explanation: string
+  tone: string
+  related_concepts?: string[]
+  partial_credit?: boolean
+  learning_opportunity?: boolean
+}
+
+export interface GapAnalysis {
+  gaps_identified: boolean
+  struggling_topics?: string[]
+  prerequisite_gaps?: string[]
+  remedial_focus?: Array<{
+    topic: string
+    current_accuracy: number
+    target_accuracy: number
+    recommendation: string
+  }>
+  overall_recommendation: string
+  message?: string
+}
+
+// Authentication Types
+export interface UserProfile {
+  user_id: string
+  email: string
+  full_name: string
+  created_at: string
+  last_login?: string
+  avatar_url?: string
+  study_streak: number
+  last_study_date?: string
+  total_documents_uploaded: number
+  total_quizzes_taken: number
+  average_score: number
+}
+
+export interface UserCreate {
+  email: string
+  password: string
+  full_name: string
+}
+
+export interface UserLogin {
+  email: string
+  password: string
+}
+
+export interface AuthToken {
+  access_token: string
+  token_type: string
+  user: UserProfile
+}
+
+export interface DocumentHistoryItem {
+  document_id: string
+  user_id: string
+  filename: string
+  upload_date: string
+  document_type: string
+  session_id: string
+  topics: string[]
+}
+
+export interface QuizHistoryItem {
+  quiz_id: string
+  user_id: string
+  document_id: string
+  quiz_date: string
+  score: number
+  total_questions: number
+  correct_answers: number
+  difficulty: string
+  topics: string[]
+}
+
+export interface UserStats {
+  user_id: string
+  total_documents: number
+  total_quizzes: number
+  average_score: number
+  current_streak: number
+  longest_streak: number
+  recent_documents: DocumentHistoryItem[]
+  recent_quizzes: QuizHistoryItem[]
+  performance_by_topic: { [topic: string]: number }
+  weekly_activity: Array<{
+    date: string
+    quizzes: number
+    avg_score: number
+  }>
+}
+
+// Chat Types
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+}
+
+export interface ChatRequest {
+  session_id: string
+  user_id?: string
+  message: string
+  conversation_history: ChatMessage[]
+}
+
+export interface ChatResponse {
+  message: string
+  session_id: string
+  timestamp: string
+  related_concepts?: string[]
+  confidence: string
 }

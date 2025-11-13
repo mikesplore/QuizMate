@@ -7,8 +7,14 @@ from typing import Optional
 import json
 import logging
 import traceback
+from datetime import datetime
 
-from .config import settings
+try:
+    # When running as a package (python -m backend.main)
+    from .config import settings
+except Exception:
+    # When running as a script directly (python main.py)
+    from config import settings
 
 # Configure logging
 logging.basicConfig(
@@ -16,15 +22,46 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-from .models import (
-    DocumentProcessingRequest,
-    ProcessedContent,
-    ErrorResponse,
-    AnsweredQuestionPaper,
-    QuestionPaperDetection
-)
-from .document_processor import DocumentProcessor
-from .gemini_processor import GeminiProcessor
+try:
+    from .models import (
+        DocumentProcessingRequest,
+        ProcessedContent,
+        ErrorResponse,
+        AnsweredQuestionPaper,
+        QuestionPaperDetection,
+        QuizAttemptRecord,
+        PerformanceAnalysisResponse,
+        QuestionFeedback
+    )
+    from .auth_models import UserCreate, UserLogin, Token, UserUpdate, DocumentHistory, QuizHistory
+    from .chat_models import ChatRequest, ChatResponse
+    from .document_processor import DocumentProcessor
+    from .gemini_processor import GeminiProcessor
+    from .performance_tracker import performance_tracker, QuizAttempt
+    from .feedback_generator import feedback_generator
+    from .auth_manager import auth_manager
+    from .chat_processor import chat_processor
+    from .ai_agent import ai_agent
+except Exception:
+    from models import (
+        DocumentProcessingRequest,
+        ProcessedContent,
+        ErrorResponse,
+        AnsweredQuestionPaper,
+        QuestionPaperDetection,
+        QuizAttemptRecord,
+        PerformanceAnalysisResponse,
+        QuestionFeedback
+    )
+    from auth_models import UserCreate, UserLogin, Token, UserUpdate, DocumentHistory, QuizHistory
+    from chat_models import ChatRequest, ChatResponse
+    from document_processor import DocumentProcessor
+    from gemini_processor import GeminiProcessor
+    from performance_tracker import performance_tracker, QuizAttempt
+    from feedback_generator import feedback_generator
+    from auth_manager import auth_manager
+    from chat_processor import chat_processor
+    from ai_agent import ai_agent
 
 # Create uploads directory if it doesn't exist
 os.makedirs(settings.upload_dir, exist_ok=True)
@@ -146,7 +183,8 @@ async def preview_document(
 @app.post("/api/process-document", response_model=ProcessedContent)
 async def process_document(
     file: UploadFile = File(...),
-    config: str = Form(...)
+    config: str = Form(...),
+    user_id: Optional[str] = Form(None)
 ):
     """
     Process uploaded document and generate study materials
@@ -222,6 +260,24 @@ async def process_document(
                 page_count
             )
             logger.info(f"Study materials generated successfully: {len(result.multiple_choice_questions)} MC, {len(result.flashcards)} flashcards")
+            
+            # Track document for authenticated users
+            if user_id:
+                try:
+                    from datetime import datetime
+                    from .auth_manager import auth_manager
+                    doc_history = DocumentHistory(
+                        document_id=request.session_id,
+                        title=file.filename or "Untitled",
+                        upload_date=datetime.now(),
+                        document_type=request.document_type,
+                        page_count=page_count
+                    )
+                    auth_manager.add_document(user_id, doc_history)
+                    logger.info(f"Document tracked for user {user_id}")
+                except Exception as track_error:
+                    logger.warning(f"Failed to track document: {str(track_error)}")
+            
             return result
         except Exception as e:
             logger.error(f"AI processing failed: {str(e)}\n{traceback.format_exc()}")
@@ -235,7 +291,8 @@ async def process_document(
 
 @app.post("/api/answer-question-paper", response_model=AnsweredQuestionPaper)
 async def answer_question_paper(
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    user_id: Optional[str] = Form(None)
 ):
     """
     Process a question paper and generate AI answers for all questions
@@ -287,10 +344,35 @@ async def answer_question_paper(
                 detection_result
             )
             logger.info(f"Answers generated for {result.get('total_questions', 0)} questions")
+            
+            # Track for authenticated users
+            if user_id:
+                try:
+                    from datetime import datetime
+                    from .auth_manager import auth_manager
+                    doc_history = DocumentHistory(
+                        document_id=result.get('session_id', str(uuid.uuid4())),
+                        title=file.filename or "Question Paper",
+                        upload_date=datetime.now(),
+                        document_type="question_paper",
+                        page_count=page_count
+                    )
+                    auth_manager.add_document(user_id, doc_history)
+                    logger.info(f"Question paper tracked for user {user_id}")
+                except Exception as track_error:
+                    logger.warning(f"Failed to track question paper: {str(track_error)}")
+            
             return result
         except Exception as e:
-            logger.error(f"Answer generation failed: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Answer generation failed: {str(e)}")
+            # Detect rate-limit / resource exhausted errors (e.g., Vertex AI 429)
+            err_text = str(e) or ""
+            logger.error(f"Answer generation failed: {err_text}")
+            lower_err = err_text.lower()
+            if "429" in err_text or "resource exhausted" in lower_err or "exhausted" in lower_err or "quota" in lower_err or "rate limit" in lower_err:
+                # Return a generic server-busy message to the client
+                raise HTTPException(status_code=503, detail="Server busy")
+            # Fallback to internal error for other exceptions
+            raise HTTPException(status_code=500, detail=f"Answer generation failed: {err_text}")
     
     except HTTPException:
         raise
@@ -306,10 +388,315 @@ async def get_supported_formats():
         "max_size_mb": settings.max_upload_size_mb
     }
 
+@app.post("/api/submit-quiz", response_model=PerformanceAnalysisResponse)
+async def submit_quiz(attempt: QuizAttemptRecord):
+    """
+    Submit quiz attempt and receive performance analysis
+    Implements adaptive difficulty system from prompt.json
+    """
+    try:
+        # Convert to QuizAttempt for processing
+        quiz_attempt = QuizAttempt(
+            session_id=attempt.session_id,
+            timestamp=datetime.now(),
+            topic=attempt.topic,
+            difficulty=attempt.difficulty,
+            total_questions=attempt.total_questions,
+            correct_answers=attempt.correct_answers,
+            score_percentage=attempt.score_percentage,
+            questions_by_topic=attempt.questions_by_topic
+        )
+        
+        # Get performance analysis
+        analysis = performance_tracker.analyze_performance(
+            attempt.session_id,
+            quiz_attempt
+        )
+        
+        logger.info(f"Quiz submitted: {attempt.session_id}, score: {attempt.score_percentage}%, next difficulty: {analysis.next_difficulty}")
+        
+        return analysis
+        
+    except Exception as e:
+        logger.error(f"Error processing quiz submission: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing quiz: {str(e)}")
+
+@app.get("/api/performance-analysis/{session_id}")
+async def get_performance_analysis(session_id: str):
+    """Get performance analysis and learning gaps for a user"""
+    try:
+        gap_analysis = performance_tracker.get_gap_analysis(session_id)
+        return gap_analysis
+    except Exception as e:
+        logger.error(f"Error getting performance analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving analysis: {str(e)}")
+
+@app.post("/api/question-feedback")
+async def get_question_feedback(
+    question: str = Form(...),
+    user_answer: str = Form(...),
+    correct_answer: str = Form(...),
+    explanation: str = Form(...),
+    is_correct: bool = Form(...)
+):
+    """
+    Get detailed feedback for a specific question
+    Uses culturally appropriate feedback from prompt.json
+    """
+    try:
+        if is_correct:
+            feedback = feedback_generator.generate_correct_feedback(
+                question=question,
+                correct_answer=correct_answer,
+                explanation=explanation
+            )
+        else:
+            feedback = feedback_generator.generate_incorrect_feedback(
+                question=question,
+                user_answer=user_answer,
+                correct_answer=correct_answer,
+                explanation=explanation
+            )
+        
+        return feedback
+        
+    except Exception as e:
+        logger.error(f"Error generating feedback: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating feedback: {str(e)}")
+
+# Authentication Endpoints
+@app.post("/api/auth/register", response_model=Token)
+async def register(user_data: UserCreate):
+    """Register a new user"""
+    try:
+        user_profile = auth_manager.register_user(
+            email=user_data.email,
+            password=user_data.password,
+            full_name=user_data.full_name
+        )
+        
+        access_token = auth_manager.create_access_token(
+            user_id=user_profile.user_id,
+            email=user_profile.email
+        )
+        
+        logger.info(f"New user registered: {user_profile.email}")
+        
+        return Token(
+            access_token=access_token,
+            user=user_profile
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Registration failed")
+
+@app.post("/api/auth/login", response_model=Token)
+async def login(credentials: UserLogin):
+    """Login user"""
+    try:
+        user_profile = auth_manager.authenticate_user(
+            email=credentials.email,
+            password=credentials.password
+        )
+        
+        if not user_profile:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        access_token = auth_manager.create_access_token(
+            user_id=user_profile.user_id,
+            email=user_profile.email
+        )
+        
+        logger.info(f"User logged in: {user_profile.email}")
+        
+        return Token(
+            access_token=access_token,
+            user=user_profile
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Login failed")
+
+@app.get("/api/auth/me")
+async def get_current_user(authorization: str = Form(...)):
+    """Get current user profile from token"""
+    try:
+        # Extract token from "Bearer <token>"
+        token = authorization.replace("Bearer ", "")
+        payload = auth_manager.verify_token(token)
+        
+        if not payload:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        
+        user_profile = auth_manager.get_user_by_id(payload["sub"])
+        if not user_profile:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return user_profile
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get user error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get user profile")
+
+@app.get("/api/user/stats/{user_id}")
+async def get_user_statistics(user_id: str):
+    """Get comprehensive user statistics"""
+    try:
+        stats = auth_manager.get_user_stats(user_id)
+        if not stats:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return stats
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get stats error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get user statistics")
+
+# Chat Endpoints
+@app.post("/api/chat/message", response_model=ChatResponse)
+async def send_chat_message(request: ChatRequest):
+    """
+    Send a message to the AI Study Assistant
+    Supports: Document Q&A, YouTube analysis, Image generation, Note generation, Recommendations
+    """
+    try:
+        # Get user stats if user_id is provided
+        user_stats = None
+        if request.user_id:
+            try:
+                stats = auth_manager.get_user_stats(request.user_id)
+                if stats:
+                    user_stats = {
+                        'total_quizzes': stats.total_quizzes,
+                        'average_score': stats.average_score,
+                        'current_streak': stats.current_streak,
+                        'recent_quizzes': [
+                            {'topic': q.topic, 'score': q.score}
+                            for q in stats.recent_quizzes
+                        ],
+                        'performance_by_topic': stats.performance_by_topic
+                    }
+            except Exception as e:
+                logger.warning(f"Could not get user stats: {str(e)}")
+        
+        # Save user message to database
+        if request.user_id:
+            try:
+                auth_manager.save_chat_message(
+                    user_id=request.user_id,
+                    role="user",
+                    content=request.message,
+                    session_id=request.session_id
+                )
+            except Exception as e:
+                logger.warning(f"Failed to save user message: {str(e)}")
+        
+        # Process with AI agent
+        result = ai_agent.process_message(
+            session_id=request.session_id,
+            user_id=request.user_id,
+            message=request.message,
+            conversation_history=request.conversation_history,
+            user_stats=user_stats
+        )
+        
+        # Save AI response to database
+        if request.user_id:
+            try:
+                auth_manager.save_chat_message(
+                    user_id=request.user_id,
+                    role="assistant",
+                    content=result['message'],
+                    session_id=request.session_id
+                )
+            except Exception as e:
+                logger.warning(f"Failed to save AI response: {str(e)}")
+        
+        return ChatResponse(
+            message=result['message'],
+            session_id=request.session_id,
+            timestamp=datetime.now(),
+            related_concepts=[],
+            confidence="high"
+        )
+        
+    except Exception as e:
+        logger.error(f"Chat error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
+
+@app.get("/api/chat/history/{session_id}")
+async def get_chat_history(session_id: str, user_id: Optional[str] = None):
+    """Get chat history for a session from database"""
+    try:
+        messages = []
+        
+        # Try to get from database first if user_id provided
+        if user_id:
+            try:
+                messages = auth_manager.get_chat_history(user_id, session_id)
+            except Exception as e:
+                logger.warning(f"Failed to get chat history from database: {str(e)}")
+        
+        # Fallback to chat_processor if no messages found
+        if not messages:
+            try:
+                history = chat_processor.get_chat_history(session_id)
+                if history and hasattr(history, 'messages'):
+                    messages = [
+                        {
+                            "role": msg.role,
+                            "content": msg.content,
+                            "timestamp": msg.timestamp
+                        }
+                        for msg in history.messages
+                    ]
+            except Exception as e:
+                logger.warning(f"Failed to get from chat_processor: {str(e)}")
+        
+        return {
+            "messages": messages,
+            "session_id": session_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Get chat history error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get chat history")
+
+@app.post("/api/chat/context")
+async def set_chat_context(
+    session_id: str = Form(...),
+    document_text: str = Form(...),
+    document_title: str = Form(...)
+):
+    """Set document context for chat session"""
+    try:
+        # Set context in both processors for compatibility
+        chat_processor.set_document_context(session_id, document_text, document_title)
+        ai_agent.set_document_context(session_id, document_text, document_title)
+        return {"status": "success", "message": "Chat context set"}
+        
+    except Exception as e:
+        logger.error(f"Set context error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to set chat context")
+
 if __name__ == "__main__":
     import uvicorn
+    # When running under different entry modes the import path changes.
+    # If __package__ is set (module run: python -m backend.main) use that package
+    # otherwise use the local module name so running `python main.py` still works.
+    module_target = f"{__package__}.main:app" if __package__ else "main:app"
     uvicorn.run(
-        "main:app",
+        module_target,
         host=settings.backend_host,
         port=settings.backend_port,
         reload=True

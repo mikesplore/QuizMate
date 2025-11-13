@@ -1,6 +1,8 @@
-import { ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { BookOpen, FileText, CreditCard, ClipboardList, BarChart3 } from 'lucide-react'
+import { ReactNode, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { BookOpen, FileText, CreditCard, ClipboardList, BarChart3, User, LogOut, MessageCircle } from 'lucide-react'
+import { useStore } from '../store/useStore'
+import ChatAssistant from './ChatAssistant'
 
 interface LayoutProps {
   children: ReactNode
@@ -8,6 +10,9 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { user, isAuthenticated, logout, processedContent } = useStore()
+  const [isChatOpen, setIsChatOpen] = useState(false)
 
   const navItems = [
     { path: '/', label: 'Upload', icon: FileText },
@@ -16,6 +21,14 @@ const Layout = ({ children }: LayoutProps) => {
     { path: '/study-notes', label: 'Study Notes', icon: BookOpen },
     { path: '/results', label: 'Results', icon: BarChart3 },
   ]
+
+  const handleLogout = () => {
+    logout()
+    navigate('/')
+  }
+
+  // Chat is always available for authenticated users
+  const showChatButton = isAuthenticated
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100">
@@ -54,6 +67,36 @@ const Layout = ({ children }: LayoutProps) => {
                   </Link>
                 )
               })}
+              
+              {/* Auth Actions */}
+              <div className="ml-4 flex items-center space-x-2 border-l border-slate-200 pl-4">
+                {isAuthenticated && user ? (
+                  <>
+                    <Link
+                      to="/dashboard"
+                      className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+                    >
+                      <User className="w-4 h-4" />
+                      <span className="text-sm">{user.full_name.split(' ')[0]}</span>
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span className="text-sm">Logout</span>
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    to="/auth"
+                    className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <User className="w-4 h-4" />
+                    <span className="text-sm">Login</span>
+                  </Link>
+                )}
+              </div>
             </nav>
 
             {/* Mobile Menu Button */}
@@ -80,6 +123,24 @@ const Layout = ({ children }: LayoutProps) => {
                   </Link>
                 )
               })}
+              {/* Mobile Auth */}
+              {isAuthenticated && user ? (
+                <Link
+                  to="/dashboard"
+                  className="flex flex-col items-center justify-center min-w-[70px] px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-100"
+                >
+                  <User className="w-5 h-5 mb-1" />
+                  <span className="text-xs font-medium whitespace-nowrap">Profile</span>
+                </Link>
+              ) : (
+                <Link
+                  to="/auth"
+                  className="flex flex-col items-center justify-center min-w-[70px] px-3 py-2 rounded-lg bg-blue-600 text-white"
+                >
+                  <User className="w-5 h-5 mb-1" />
+                  <span className="text-xs font-medium whitespace-nowrap">Login</span>
+                </Link>
+              )}
             </div>
           </nav>
         </div>
@@ -89,6 +150,26 @@ const Layout = ({ children }: LayoutProps) => {
       <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
         {children}
       </main>
+
+      {/* Chat Button - Always visible for authenticated users */}
+      {showChatButton && (
+        <button
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className="fixed bottom-4 right-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-110 z-40"
+          title="AI Study Assistant - Get personalized recommendations"
+        >
+          <MessageCircle className="h-6 w-6" />
+        </button>
+      )}
+
+      {/* Chat Assistant - Works with or without document */}
+      {showChatButton && (
+        <ChatAssistant
+          sessionId={processedContent?.session_id || user?.user_id || 'general'}
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+        />
+      )}
 
       {/* Professional Footer */}
       <footer className="bg-slate-900 text-white border-t border-slate-800 mt-auto">

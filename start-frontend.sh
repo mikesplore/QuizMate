@@ -2,4 +2,4 @@
 
 # Start frontend development server
 echo "🚀 Starting QuizMate Frontend..."
-npm run dev
+cd frontend && npm run dev

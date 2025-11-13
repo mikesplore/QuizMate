@@ -5,4 +5,4 @@ source venv/bin/activate
 
 # Start backend server
 echo "🚀 Starting QuizMate Backend..."
-python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+cd backend && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
