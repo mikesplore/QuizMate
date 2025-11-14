@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { FileText, CheckCircle, RotateCcw, BookOpen, Award, Clock } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 
 const AnsweredQuestions = () => {
   const navigate = useNavigate()
@@ -132,8 +133,8 @@ const AnsweredQuestions = () => {
                     AI-Generated Answer
                   </h5>
                 </div>
-                <div className="prose prose-sm max-w-none text-secondary-black leading-relaxed whitespace-pre-wrap">
-                  {qa.ai_generated_answer}
+                <div className="prose prose-sm max-w-none text-secondary-black leading-relaxed">
+                  <ReactMarkdown>{qa.ai_generated_answer}</ReactMarkdown>
                 </div>
               </div>
 

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os
@@ -39,9 +39,10 @@ try:
     from .gemini_processor import GeminiProcessor
     from .performance_tracker import performance_tracker, QuizAttempt
     from .feedback_generator import feedback_generator
-    from .auth_manager import auth_manager
+    from .db_auth_manager import db_auth_manager
     from .chat_processor import chat_processor
     from .ai_agent import ai_agent
+    from .database import init_db, get_db, Document, GeneratedContent
 except Exception:
     from models import (
         DocumentProcessingRequest,
@@ -59,12 +60,16 @@ except Exception:
     from gemini_processor import GeminiProcessor
     from performance_tracker import performance_tracker, QuizAttempt
     from feedback_generator import feedback_generator
-    from auth_manager import auth_manager
+    from db_auth_manager import db_auth_manager
     from chat_processor import chat_processor
     from ai_agent import ai_agent
+    from database import init_db, get_db, Document, GeneratedContent
 
 # Create uploads directory if it doesn't exist
 os.makedirs(settings.upload_dir, exist_ok=True)
+
+# Initialize database
+init_db()
 
 app = FastAPI(
     title="QuizMate API",
@@ -184,7 +189,8 @@ async def preview_document(
 async def process_document(
     file: UploadFile = File(...),
     config: str = Form(...),
-    user_id: Optional[str] = Form(None)
+    user_id: Optional[str] = Form(None),
+    db=Depends(get_db)
 ):
     """
     Process uploaded document and generate study materials
@@ -250,7 +256,25 @@ async def process_document(
         # Generate session ID if not provided
         if not request.session_id:
             request.session_id = str(uuid.uuid4())
-        
+
+        # Track document for authenticated users IMMEDIATELY upon upload
+        document_id = None
+        if user_id:
+            try:
+                from datetime import datetime
+                doc_history = DocumentHistory(
+                    document_id=request.session_id,
+                    filename=file.filename or "Untitled",
+                    upload_date=datetime.now(),
+                    document_type=request.document_type,
+                    page_count=page_count
+                )
+                db_auth_manager.add_document(user_id, doc_history, db)
+                document_id = request.session_id
+                logger.info(f"Document tracked for user {user_id} immediately after upload")
+            except Exception as track_error:
+                logger.warning(f"Failed to track document: {str(track_error)}")
+
         # Generate study materials using Gemini
         try:
             logger.info(f"Generating study materials with Gemini for session: {request.session_id}")
@@ -259,24 +283,31 @@ async def process_document(
                 request,
                 page_count
             )
-            logger.info(f"Study materials generated successfully: {len(result.multiple_choice_questions)} MC, {len(result.flashcards)} flashcards")
-            
-            # Track document for authenticated users
+            logger.info(f"Study materials generated successfully: {len(result.multiple_choice_questions)} MC, {len(result.flashcards)} flashcards")            # Save generated content to database
             if user_id:
                 try:
-                    from datetime import datetime
-                    from .auth_manager import auth_manager
-                    doc_history = DocumentHistory(
-                        document_id=request.session_id,
-                        title=file.filename or "Untitled",
-                        upload_date=datetime.now(),
-                        document_type=request.document_type,
-                        page_count=page_count
+                    content_data = {
+                        'content_type': 'quiz',
+                        'multiple_choice_questions': [q.dict() for q in result.multiple_choice_questions],
+                        'true_false_questions': [q.dict() for q in result.true_false_questions] if result.true_false_questions else None,
+                        'short_answer_questions': [q.dict() for q in result.short_answer_questions] if result.short_answer_questions else None,
+                        'flashcards': [f.dict() for f in result.flashcards],
+                        'study_notes': result.study_notes,
+                        'key_concepts': result.key_concepts,
+                        'difficulty': result.difficulty,
+                        'exam_format': result.exam_format,
+                        'topics_covered': result.topics
+                    }
+                    db_auth_manager.save_generated_content(
+                        session_id=request.session_id,
+                        user_id=user_id,
+                        document_id=document_id,
+                        content_data=content_data,
+                        db=db
                     )
-                    auth_manager.add_document(user_id, doc_history)
-                    logger.info(f"Document tracked for user {user_id}")
-                except Exception as track_error:
-                    logger.warning(f"Failed to track document: {str(track_error)}")
+                    logger.info(f"Generated content saved to database for session {request.session_id}")
+                except Exception as save_error:
+                    logger.warning(f"Failed to save generated content: {str(save_error)}")
             
             return result
         except Exception as e:
@@ -292,7 +323,8 @@ async def process_document(
 @app.post("/api/answer-question-paper", response_model=AnsweredQuestionPaper)
 async def answer_question_paper(
     file: UploadFile = File(...),
-    user_id: Optional[str] = Form(None)
+    user_id: Optional[str] = Form(None),
+    db=Depends(get_db)
 ):
     """
     Process a question paper and generate AI answers for all questions
@@ -328,6 +360,25 @@ async def answer_question_paper(
             logger.error(f"Document processing failed: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Document processing failed: {str(e)}")
         
+        # Track for authenticated users BEFORE processing
+        document_id = None
+        session_id = str(uuid.uuid4())
+        if user_id:
+            try:
+                from datetime import datetime
+                doc_history = DocumentHistory(
+                    document_id=session_id,
+                    filename=file.filename or "Question Paper",
+                    upload_date=datetime.now(),
+                    document_type="question_paper",
+                    page_count=page_count
+                )
+                db_auth_manager.add_document(user_id, doc_history, db)
+                document_id = session_id
+                logger.info(f"Question paper tracked for user {user_id}")
+            except Exception as track_error:
+                logger.warning(f"Failed to track question paper: {str(track_error)}")
+
         # Detect if it's actually a question paper
         detection_result = gemini_processor.detect_question_paper(document_text)
         
@@ -343,24 +394,27 @@ async def answer_question_paper(
                 file.filename,
                 detection_result
             )
+            # Update result with our session_id
+            result['session_id'] = session_id
             logger.info(f"Answers generated for {result.get('total_questions', 0)} questions")
             
-            # Track for authenticated users
+            # Save answered questions to database
             if user_id:
                 try:
-                    from datetime import datetime
-                    from .auth_manager import auth_manager
-                    doc_history = DocumentHistory(
-                        document_id=result.get('session_id', str(uuid.uuid4())),
-                        title=file.filename or "Question Paper",
-                        upload_date=datetime.now(),
-                        document_type="question_paper",
-                        page_count=page_count
+                    content_data = {
+                        'content_type': 'answers',
+                        'answered_questions': result.get('answered_questions', [])
+                    }
+                    db_auth_manager.save_generated_content(
+                        session_id=session_id,
+                        user_id=user_id,
+                        document_id=document_id,
+                        content_data=content_data,
+                        db=db
                     )
-                    auth_manager.add_document(user_id, doc_history)
-                    logger.info(f"Question paper tracked for user {user_id}")
-                except Exception as track_error:
-                    logger.warning(f"Failed to track question paper: {str(track_error)}")
+                    logger.info(f"Answered questions saved to database for session {session_id}")
+                except Exception as save_error:
+                    logger.warning(f"Failed to save answered questions: {str(save_error)}")
             
             return result
         except Exception as e:
@@ -389,7 +443,7 @@ async def get_supported_formats():
     }
 
 @app.post("/api/submit-quiz", response_model=PerformanceAnalysisResponse)
-async def submit_quiz(attempt: QuizAttemptRecord):
+async def submit_quiz(attempt: QuizAttemptRecord, db=Depends(get_db)):
     """
     Submit quiz attempt and receive performance analysis
     Implements adaptive difficulty system from prompt.json
@@ -412,6 +466,22 @@ async def submit_quiz(attempt: QuizAttemptRecord):
             attempt.session_id,
             quiz_attempt
         )
+        
+        # Save quiz result for authenticated users
+        if attempt.user_id:
+            try:
+                quiz_history = QuizHistory(
+                    quiz_id=str(uuid.uuid4()),
+                    quiz_date=datetime.now(),
+                    topic=attempt.topic,
+                    score=attempt.score_percentage,
+                    total_questions=attempt.total_questions,
+                    topics=list(attempt.questions_by_topic.keys()) if attempt.questions_by_topic else []
+                )
+                db_auth_manager.add_quiz_result(attempt.user_id, quiz_history, db)
+                logger.info(f"Quiz result saved for user {attempt.user_id}")
+            except Exception as save_error:
+                logger.warning(f"Failed to save quiz result: {str(save_error)}")
         
         logger.info(f"Quiz submitted: {attempt.session_id}, score: {attempt.score_percentage}%, next difficulty: {analysis.next_difficulty}")
         
@@ -466,16 +536,17 @@ async def get_question_feedback(
 
 # Authentication Endpoints
 @app.post("/api/auth/register", response_model=Token)
-async def register(user_data: UserCreate):
+async def register(user_data: UserCreate, db=Depends(get_db)):
     """Register a new user"""
     try:
-        user_profile = auth_manager.register_user(
+        user_profile = db_auth_manager.register_user(
             email=user_data.email,
             password=user_data.password,
-            full_name=user_data.full_name
+            full_name=user_data.full_name,
+            db=db
         )
         
-        access_token = auth_manager.create_access_token(
+        access_token = db_auth_manager.create_access_token(
             user_id=user_profile.user_id,
             email=user_profile.email
         )
@@ -494,18 +565,19 @@ async def register(user_data: UserCreate):
         raise HTTPException(status_code=500, detail="Registration failed")
 
 @app.post("/api/auth/login", response_model=Token)
-async def login(credentials: UserLogin):
+async def login(credentials: UserLogin, db=Depends(get_db)):
     """Login user"""
     try:
-        user_profile = auth_manager.authenticate_user(
+        user_profile = db_auth_manager.authenticate_user(
             email=credentials.email,
-            password=credentials.password
+            password=credentials.password,
+            db=db
         )
         
         if not user_profile:
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
-        access_token = auth_manager.create_access_token(
+        access_token = db_auth_manager.create_access_token(
             user_id=user_profile.user_id,
             email=user_profile.email
         )
@@ -524,17 +596,17 @@ async def login(credentials: UserLogin):
         raise HTTPException(status_code=500, detail="Login failed")
 
 @app.get("/api/auth/me")
-async def get_current_user(authorization: str = Form(...)):
+async def get_current_user(authorization: str = Form(...), db=Depends(get_db)):
     """Get current user profile from token"""
     try:
         # Extract token from "Bearer <token>"
         token = authorization.replace("Bearer ", "")
-        payload = auth_manager.verify_token(token)
+        payload = db_auth_manager.verify_token(token)
         
         if not payload:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
         
-        user_profile = auth_manager.get_user_by_id(payload["sub"])
+        user_profile = db_auth_manager.get_user_by_id(payload["sub"], db)
         if not user_profile:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -547,10 +619,10 @@ async def get_current_user(authorization: str = Form(...)):
         raise HTTPException(status_code=500, detail="Failed to get user profile")
 
 @app.get("/api/user/stats/{user_id}")
-async def get_user_statistics(user_id: str):
+async def get_user_statistics(user_id: str, db=Depends(get_db)):
     """Get comprehensive user statistics"""
     try:
-        stats = auth_manager.get_user_stats(user_id)
+        stats = db_auth_manager.get_user_stats(user_id, db)
         if not stats:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -564,7 +636,7 @@ async def get_user_statistics(user_id: str):
 
 # Chat Endpoints
 @app.post("/api/chat/message", response_model=ChatResponse)
-async def send_chat_message(request: ChatRequest):
+async def send_chat_message(request: ChatRequest, db=Depends(get_db)):
     """
     Send a message to the AI Study Assistant
     Supports: Document Q&A, YouTube analysis, Image generation, Note generation, Recommendations
@@ -574,7 +646,7 @@ async def send_chat_message(request: ChatRequest):
         user_stats = None
         if request.user_id:
             try:
-                stats = auth_manager.get_user_stats(request.user_id)
+                stats = db_auth_manager.get_user_stats(request.user_id, db)
                 if stats:
                     user_stats = {
                         'total_quizzes': stats.total_quizzes,
@@ -592,11 +664,12 @@ async def send_chat_message(request: ChatRequest):
         # Save user message to database
         if request.user_id:
             try:
-                auth_manager.save_chat_message(
+                db_auth_manager.save_chat_message(
                     user_id=request.user_id,
                     role="user",
                     content=request.message,
-                    session_id=request.session_id
+                    session_id=request.session_id,
+                    db=db
                 )
             except Exception as e:
                 logger.warning(f"Failed to save user message: {str(e)}")
@@ -613,11 +686,12 @@ async def send_chat_message(request: ChatRequest):
         # Save AI response to database
         if request.user_id:
             try:
-                auth_manager.save_chat_message(
+                db_auth_manager.save_chat_message(
                     user_id=request.user_id,
                     role="assistant",
                     content=result['message'],
-                    session_id=request.session_id
+                    session_id=request.session_id,
+                    db=db
                 )
             except Exception as e:
                 logger.warning(f"Failed to save AI response: {str(e)}")
@@ -635,7 +709,7 @@ async def send_chat_message(request: ChatRequest):
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
 
 @app.get("/api/chat/history/{session_id}")
-async def get_chat_history(session_id: str, user_id: Optional[str] = None):
+async def get_chat_history(session_id: str, user_id: Optional[str] = None, db=Depends(get_db)):
     """Get chat history for a session from database"""
     try:
         messages = []
@@ -643,7 +717,7 @@ async def get_chat_history(session_id: str, user_id: Optional[str] = None):
         # Try to get from database first if user_id provided
         if user_id:
             try:
-                messages = auth_manager.get_chat_history(user_id, session_id)
+                messages = db_auth_manager.get_chat_history(user_id, session_id, db=db)
             except Exception as e:
                 logger.warning(f"Failed to get chat history from database: {str(e)}")
         
@@ -688,6 +762,98 @@ async def set_chat_context(
     except Exception as e:
         logger.error(f"Set context error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to set chat context")
+
+# Generated Content Endpoints
+@app.get("/api/content/{session_id}")
+async def get_generated_content(session_id: str, db=Depends(get_db)):
+    """Retrieve previously generated content for a session"""
+    try:
+        content = db_auth_manager.get_generated_content(session_id, db)
+        if not content:
+            raise HTTPException(status_code=404, detail="Content not found")
+        
+        return content
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get content error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve content")
+
+@app.get("/api/user/{user_id}/content")
+async def get_user_content(user_id: str, limit: int = 20, db=Depends(get_db)):
+    """Get all generated content for a user"""
+    try:
+        contents = db_auth_manager.get_user_generated_content(user_id, db, limit)
+        return {"contents": contents}
+        
+    except Exception as e:
+        logger.error(f"Get user content error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve user content")
+
+@app.get("/api/user/{user_id}/documents")
+async def get_user_documents(user_id: str, limit: int = 50, db=Depends(get_db)):
+    """Get all documents uploaded by a user"""
+    try:
+        documents = db.query(Document).filter(
+            Document.user_id == user_id
+        ).order_by(Document.upload_date.desc()).limit(limit).all()
+        
+        result = []
+        for doc in documents:
+            # Get associated generated content
+            gen_content = db.query(GeneratedContent).filter(
+                GeneratedContent.document_id == doc.document_id
+            ).first()
+            
+            result.append({
+                "document_id": doc.document_id,
+                "title": doc.title,
+                "upload_date": doc.upload_date.isoformat(),
+                "document_type": doc.document_type,
+                "page_count": doc.page_count,
+                "topics": gen_content.topics_covered if gen_content and gen_content.topics_covered else [],
+                "has_content": gen_content is not None
+            })
+        
+        return {"documents": result}
+        
+    except Exception as e:
+        logger.error(f"Get user documents error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve user documents")
+
+@app.get("/api/document/{document_id}/content")
+async def get_document_content(document_id: str, db=Depends(get_db)):
+    """Get generated content for a specific document"""
+    try:
+        content = db.query(GeneratedContent).filter(
+            GeneratedContent.document_id == document_id
+        ).first()
+        
+        if not content:
+            raise HTTPException(status_code=404, detail="Content not found for this document")
+        
+        return {
+            "session_id": content.session_id,
+            "content_type": content.content_type,
+            "created_at": content.created_at.isoformat(),
+            "multiple_choice_questions": content.multiple_choice_questions,
+            "true_false_questions": content.true_false_questions,
+            "short_answer_questions": content.short_answer_questions,
+            "flashcards": content.flashcards,
+            "study_notes": content.study_notes,
+            "key_concepts": content.key_concepts,
+            "answered_questions": content.answered_questions,
+            "difficulty": content.difficulty,
+            "exam_format": content.exam_format,
+            "topics_covered": content.topics_covered
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get document content error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve document content")
 
 if __name__ == "__main__":
     import uvicorn

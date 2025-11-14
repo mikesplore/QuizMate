@@ -8,6 +8,7 @@ import Results from './pages/Results'
 import AnsweredQuestions from './pages/AnsweredQuestions'
 import Auth from './pages/Auth'
 import Dashboard from './pages/Dashboard'
+import Documents from './pages/Documents'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/documents" element={<Documents />} />
           <Route path="/quiz" element={<Quiz />} />
           <Route path="/flashcards" element={<Flashcards />} />
           <Route path="/study-notes" element={<StudyNotes />} />

@@ -173,4 +173,22 @@ export const setChatContext = async (
   return response.data
 }
 
+// Documents API
+export const getUserDocuments = async (userId: string, limit: number = 50) => {
+  const response = await api.get(`/api/user/${userId}/documents`, {
+    params: { limit }
+  })
+  return response.data
+}
+
+export const getDocumentContent = async (documentId: string) => {
+  const response = await api.get(`/api/document/${documentId}/content`)
+  return response.data
+}
+
+export const getGeneratedContent = async (sessionId: string) => {
+  const response = await api.get(`/api/content/${sessionId}`)
+  return response.data
+}
+
 export default api

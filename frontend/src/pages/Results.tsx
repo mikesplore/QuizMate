@@ -5,6 +5,7 @@ import { useMemo, useEffect, useState } from 'react'
 import { QuizStatistics, PerformanceAnalysis, QuizAttemptRecord } from '../types'
 import { submitQuiz } from '../services/api'
 import PerformanceAnalytics from '../components/PerformanceAnalytics'
+import ReactMarkdown from 'react-markdown'
 
 const Results = () => {
   const navigate = useNavigate()
@@ -258,19 +259,24 @@ const Results = () => {
                         <strong>Topic:</strong> {question?.topic || 'General'}
                       </p>
                       <div className="bg-green-50 border border-brand-green rounded p-3 mb-3">
-                        <p className="text-sm text-gray-700">
+                        <div className="text-sm text-gray-700">
                           <strong className="text-brand-green">Correct Answer:</strong>{' '}
-                          {answer.questionType === 'multiple_choice' 
-                            ? (question as any).options[(question as any).correct_answer]
-                            : answer.questionType === 'multi_select'
-                            ? (question as any).correct_answers?.map((idx: number) => (question as any).options[idx]).join(', ')
-                            : (question as any).correct_answer ? 'True' : 'False'}
-                        </p>
+                          <ReactMarkdown>
+                            {answer.questionType === 'multiple_choice' 
+                              ? (question as any).options[(question as any).correct_answer]
+                              : answer.questionType === 'multi_select'
+                              ? (question as any).correct_answers?.map((idx: number) => (question as any).options[idx]).join(', ')
+                              : (question as any).correct_answer ? 'True' : 'False'}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                       <div className="bg-blue-50 border border-brand-blue rounded p-3">
-                        <p className="text-sm text-gray-700">
-                          <strong className="text-brand-blue">Study Tip:</strong> {question?.explanation}
-                        </p>
+                        <div className="text-sm text-gray-700">
+                          <strong className="text-brand-blue">Study Tip:</strong>{' '}
+                          <ReactMarkdown>
+                            {question?.explanation || ''}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   </div>

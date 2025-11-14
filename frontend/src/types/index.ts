@@ -148,6 +148,9 @@ export interface ProcessedContent {
   study_notes: string
   summary: string
   key_terms: string[]
+  topics: string[]
+  difficulty?: string
+  exam_format?: string
 }
 
 export interface QuizAnswer {

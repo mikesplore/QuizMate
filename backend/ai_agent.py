@@ -293,26 +293,38 @@ Format in engaging markdown with emojis."""
     def _handle_document_qa(self, message: str, session_id: str, history: List[Dict]) -> Dict:
         """Handle Q&A about uploaded documents"""
         document_text = self.session_data[session_id].get('document_text', '')
-        
-        conversation_context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in history[-5:]])
+        # Normalize history items (support dicts and ORM objects)
+        def _extract_role_content(msg_item):
+            # dict-like
+            if isinstance(msg_item, dict):
+                return msg_item.get('role', 'user'), msg_item.get('content', '')
+            # ORM object or other with attributes
+            role = getattr(msg_item, 'role', None) or (msg_item.get('role') if hasattr(msg_item, 'get') else None)
+            content = getattr(msg_item, 'content', None) or (msg_item.get('content') if hasattr(msg_item, 'get') else '')
+            return role or 'user', content or ''
+
+        convo_slice = history[-5:] if history else []
+        conversation_context = "\n".join([f"{r}: {c}" for r, c in (_extract_role_content(m) for m in convo_slice)])
         
         prompt = f"""You are an AI Study Assistant. Answer the student's question based on the document content.
 
-DOCUMENT:
-{document_text[:5000]}
+    DOCUMENT:
+    {document_text[:5000]}
 
-CONVERSATION HISTORY:
-{conversation_context}
+    CONVERSATION HISTORY:
+    {conversation_context}
 
-QUESTION: {message}
+    QUESTION: {message}
 
-Provide a clear, educational answer with:
-- **Direct Answer**
-- **Explanation** with examples
-- **Related Concepts**
-- **Study Resources** if applicable
+    Provide a clear, educational answer in concise point form (bulleted or numbered lists). Do not use too many words or long paragraphs.
 
-Use markdown formatting."""
+    Your answer should include:
+    - **Direct Answer** (in point form)
+    - **Explanation** with examples (in point form)
+    - **Related Concepts** (in point form)
+    - **Study Resources** if applicable (in point form)
+
+    Use markdown formatting. Avoid lengthy explanations; be brief and to the point."""
 
         response = self.text_model.generate_content(prompt)
         
@@ -330,15 +342,17 @@ Use markdown formatting."""
         
         prompt = f"""You are an AI Study Assistant helping students learn better.{context}
 
-QUESTION: {message}
+    QUESTION: {message}
 
-Provide helpful, educational responses with:
-- Clear explanations
-- Examples when useful
-- Study resources (YouTube, websites, books)
-- Encouragement and motivation
+    Provide helpful, educational responses in concise point form (bulleted or numbered lists). Do not use too many words or long paragraphs.
 
-Use markdown formatting with emojis for engagement."""
+    Your answer should include:
+    - Clear explanations (in point form)
+    - Examples when useful (in point form)
+    - Study resources (YouTube, websites, books) (in point form)
+    - Encouragement and motivation (in point form)
+
+    Use markdown formatting with emojis for engagement. Avoid lengthy explanations; be brief and to the point."""
 
         response = self.text_model.generate_content(prompt)
         

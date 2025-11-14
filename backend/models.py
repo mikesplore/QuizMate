@@ -179,6 +179,7 @@ class QuizAttemptRecord(BaseModel):
     correct_answers: int
     score_percentage: float
     questions_by_topic: dict = {}
+    user_id: Optional[str] = None
 
 class PerformanceAnalysisResponse(BaseModel):
     overall_score: float

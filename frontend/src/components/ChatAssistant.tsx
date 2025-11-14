@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { MessageCircle, Send, Bot, User, Loader2, X } from 'lucide-react'
+import { MessageCircle, Send, User, Loader2, X, Minimize2, Maximize2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { sendChatMessage, getChatHistory } from '../services/api'
 import { ChatMessage } from '../types'
@@ -15,6 +15,7 @@ export default function ChatAssistant({ sessionId, isOpen, onClose }: ChatAssist
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { user } = useStore()
 
@@ -26,12 +27,12 @@ export default function ChatAssistant({ sessionId, isOpen, onClose }: ChatAssist
     scrollToBottom()
   }, [messages])
 
+  // Load chat history whenever sessionId changes (including on mount/refresh)
   useEffect(() => {
-    if (isOpen && sessionId) {
-      // Load chat history
+    if (sessionId) {
       loadChatHistory()
     }
-  }, [isOpen, sessionId])
+  }, [sessionId, user?.user_id])
 
   const loadChatHistory = async () => {
     try {
@@ -95,72 +96,70 @@ export default function ChatAssistant({ sessionId, isOpen, onClose }: ChatAssist
   if (!isOpen) return null
 
   return (
-    <div className="fixed bottom-4 right-4 w-96 h-[600px] bg-white rounded-lg shadow-2xl border-2 border-gray-200 flex flex-col z-50">
+    <div 
+      className={`fixed ${isExpanded ? 'inset-4' : 'bottom-4 right-4 w-[420px] h-[600px]'} bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col z-50 transition-all duration-300`}
+    >
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-t-lg flex items-center justify-between">
-        <div className="flex items-center space-x-2">
+      <div className="bg-black text-white p-4 flex items-center justify-between rounded-t-xl">
+        <div className="flex items-center space-x-3">
           <MessageCircle className="h-5 w-5" />
-          <h3 className="font-semibold">Study Assistant</h3>
+          <h3 className="font-bold text-sm uppercase tracking-wide">Study Assistant</h3>
         </div>
-        <button
-          onClick={onClose}
-          className="hover:bg-white/20 rounded-full p-1 transition-colors"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="hover:bg-white hover:text-black rounded p-1.5 transition-colors"
+            title={isExpanded ? 'Minimize' : 'Expand'}
+          >
+            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+          <button
+            onClick={onClose}
+            className="hover:bg-white hover:text-black rounded p-1.5 transition-colors"
+            title="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-white">
         {messages.length === 0 && (
-          <div className="text-center text-gray-500 mt-8">
-            <Bot className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-            <p className="text-sm">
-              Ask me anything about your study material!
-            </p>
+          <div className="text-center mt-12">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+              <MessageCircle className="h-8 w-8 text-gray-600" />
+            </div>
+            <p className="text-sm font-medium text-gray-700">Ask me anything about your study material</p>
           </div>
         )}
 
         {messages.map((message, index) => (
           <div
             key={index}
-            className={`flex ${
-              message.role === 'user' ? 'justify-end' : 'justify-start'
-            }`}
+            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            <div
-              className={`flex items-start space-x-2 max-w-[80%] ${
-                message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
-              }`}
-            >
-              <div
-                className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                  message.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-purple-100 text-purple-600'
-                }`}
-              >
-                {message.role === 'user' ? (
-                  <User className="h-5 w-5" />
-                ) : (
-                  <Bot className="h-5 w-5" />
-                )}
+            <div className={`max-w-[85%] ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
+              {/* Role label */}
+              <div className="mb-1 flex items-center space-x-2">
+                <div className={`w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center ${message.role === 'user' ? 'ml-auto' : ''}`}>
+                  <User className="h-3 w-3 text-gray-700" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-600">
+                  {message.role === 'user' ? 'You' : 'Assistant'}
+                </span>
               </div>
-              <div
-                className={`rounded-lg p-3 ${
-                  message.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-900'
-                }`}
-              >
+              
+              {/* Message bubble */}
+              <div className={`rounded-lg p-4 ${message.role === 'user' ? 'bg-black text-white' : 'bg-gray-50 text-black border border-gray-200'}`}>
                 {message.role === 'assistant' ? (
-                  <div className="text-sm prose prose-sm max-w-none">
+                  <div className="text-sm prose prose-sm max-w-none prose-headings:font-bold prose-headings:text-black prose-p:text-black prose-li:text-black prose-strong:text-black">
                     <ReactMarkdown
                       components={{
                         a: ({ node, ...props }) => (
                           <a
                             {...props}
-                            className="text-blue-600 hover:underline"
+                            className="underline hover:no-underline font-medium"
                             target="_blank"
                             rel="noopener noreferrer"
                           />
@@ -168,26 +167,35 @@ export default function ChatAssistant({ sessionId, isOpen, onClose }: ChatAssist
                         code: ({ node, ...props }) => (
                           <code
                             {...props}
-                            className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs"
+                            className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs font-mono"
                           />
                         ),
                         pre: ({ node, ...props }) => (
                           <pre
                             {...props}
-                            className="bg-gray-800 text-white p-2 rounded overflow-x-auto text-xs my-2"
+                            className="bg-black text-white p-3 rounded overflow-x-auto text-xs my-2 font-mono"
                           />
                         ),
                         ul: ({ node, ...props }) => (
-                          <ul {...props} className="list-disc list-inside my-2" />
+                          <ul {...props} className="list-disc list-outside ml-5 my-2 space-y-1" />
                         ),
                         ol: ({ node, ...props }) => (
-                          <ol {...props} className="list-decimal list-inside my-2" />
+                          <ol {...props} className="list-decimal list-outside ml-5 my-2 space-y-1" />
                         ),
                         strong: ({ node, ...props }) => (
-                          <strong {...props} className="font-bold text-gray-900" />
+                          <strong {...props} className="font-bold" />
                         ),
                         em: ({ node, ...props }) => (
                           <em {...props} className="italic" />
+                        ),
+                        h1: ({ node, ...props }) => (
+                          <h1 {...props} className="text-lg font-bold mt-4 mb-2" />
+                        ),
+                        h2: ({ node, ...props }) => (
+                          <h2 {...props} className="text-base font-bold mt-3 mb-2" />
+                        ),
+                        h3: ({ node, ...props }) => (
+                          <h3 {...props} className="text-sm font-bold mt-2 mb-1" />
                         ),
                       }}
                     >
@@ -197,27 +205,26 @@ export default function ChatAssistant({ sessionId, isOpen, onClose }: ChatAssist
                 ) : (
                   <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                 )}
-                <p
-                  className={`text-xs mt-1 ${
-                    message.role === 'user'
-                      ? 'text-blue-200'
-                      : 'text-gray-500'
-                  }`}
-                >
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </p>
               </div>
+              
+              {/* Timestamp */}
+              <p className="text-xs mt-1 text-gray-500">
+                {new Date(message.timestamp).toLocaleTimeString()}
+              </p>
             </div>
           </div>
         ))}
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="flex items-start space-x-2 max-w-[80%]">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
-                <Bot className="h-5 w-5" />
+            <div className="max-w-[85%]">
+              <div className="mb-1 flex items-center space-x-2">
+                <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                  <User className="h-3 w-3 text-gray-700" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-600">Assistant</span>
               </div>
-              <div className="bg-gray-100 rounded-lg p-3">
+              <div className="rounded-lg bg-gray-50 border border-gray-200 p-4">
                 <Loader2 className="h-5 w-5 animate-spin text-gray-600" />
               </div>
             </div>
@@ -228,21 +235,21 @@ export default function ChatAssistant({ sessionId, isOpen, onClose }: ChatAssist
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="p-4 border-t border-gray-200 bg-white rounded-b-xl">
         <div className="flex space-x-2">
           <textarea
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask a question..."
-            className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            rows={2}
+            placeholder="Type your question..."
+            className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-black resize-none font-medium text-sm"
+            rows={1}
             disabled={isLoading}
           />
           <button
             onClick={handleSendMessage}
             disabled={isLoading || !inputMessage.trim()}
-            className="bg-blue-600 text-white rounded-lg px-4 py-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+            className="bg-black text-white rounded-lg px-5 py-2 hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center justify-center font-bold"
           >
             <Send className="h-5 w-5" />
           </button>

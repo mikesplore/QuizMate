@@ -27,7 +27,7 @@ export default function Auth() {
           password: formData.password,
         })
         setAuth(response)
-        navigate('/')
+        navigate('/dashboard')
       } else {
         const response = await register({
           email: formData.email,
@@ -35,7 +35,7 @@ export default function Auth() {
           full_name: formData.fullName,
         })
         setAuth(response)
-        navigate('/')
+        navigate('/dashboard')
       }
     } catch (err: any) {
       const errorMessage = err.response?.data?.detail || err.message || 'Authentication failed'

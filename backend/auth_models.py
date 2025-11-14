@@ -39,22 +39,18 @@ class UserUpdate(BaseModel):
 
 class DocumentHistory(BaseModel):
     document_id: str
-    user_id: str
     filename: str
     upload_date: datetime
     document_type: str
-    session_id: str
+    page_count: int = 0
     topics: List[str] = []
     
 class QuizHistory(BaseModel):
     quiz_id: str
-    user_id: str
-    document_id: str
     quiz_date: datetime
+    topic: str
     score: float
     total_questions: int
-    correct_answers: int
-    difficulty: str
     topics: List[str] = []
 
 class UserStats(BaseModel):

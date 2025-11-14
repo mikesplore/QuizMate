@@ -26,4 +26,7 @@ PyJWT==2.8.0
 aiofiles==24.1.0
 youtube-transcript-api==0.6.2
 
+# Database
+sqlalchemy==2.0.36
+alembic==1.14.0
 
