@@ -23,6 +23,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 try:
+    # Preferred: package-relative imports for running as a package
+    # (e.g., `uvicorn backend.main:app`). This keeps module paths correct
+    # when backend is on the PYTHONPATH.
     from .models import (
         DocumentProcessingRequest,
         ProcessedContent,
@@ -31,7 +34,7 @@ try:
         QuestionPaperDetection,
         QuizAttemptRecord,
         PerformanceAnalysisResponse,
-        QuestionFeedback
+        QuestionFeedback,
     )
     from .auth_models import UserCreate, UserLogin, Token, UserUpdate, DocumentHistory, QuizHistory
     from .chat_models import ChatRequest, ChatResponse
@@ -44,26 +47,37 @@ try:
     from .ai_agent import ai_agent
     from .database import init_db, get_db, Document, GeneratedContent
 except Exception:
-    from models import (
-        DocumentProcessingRequest,
-        ProcessedContent,
-        ErrorResponse,
-        AnsweredQuestionPaper,
-        QuestionPaperDetection,
-        QuizAttemptRecord,
-        PerformanceAnalysisResponse,
-        QuestionFeedback
-    )
-    from auth_models import UserCreate, UserLogin, Token, UserUpdate, DocumentHistory, QuizHistory
-    from chat_models import ChatRequest, ChatResponse
-    from document_processor import DocumentProcessor
-    from gemini_processor import GeminiProcessor
-    from performance_tracker import performance_tracker, QuizAttempt
-    from feedback_generator import feedback_generator
-    from db_auth_manager import db_auth_manager
-    from chat_processor import chat_processor
-    from ai_agent import ai_agent
-    from database import init_db, get_db, Document, GeneratedContent
+    # Fallback: allow running `python main.py` from the `backend/` folder
+    # by adding the backend directory to sys.path and importing absolute names.
+    import sys
+    backend_dir = os.path.dirname(__file__)
+    if backend_dir not in sys.path:
+        sys.path.insert(0, backend_dir)
+
+    try:
+        from models import (
+            DocumentProcessingRequest,
+            ProcessedContent,
+            ErrorResponse,
+            AnsweredQuestionPaper,
+            QuestionPaperDetection,
+            QuizAttemptRecord,
+            PerformanceAnalysisResponse,
+            QuestionFeedback,
+        )
+        from auth_models import UserCreate, UserLogin, Token, UserUpdate, DocumentHistory, QuizHistory
+        from chat_models import ChatRequest, ChatResponse
+        from document_processor import DocumentProcessor
+        from gemini_processor import GeminiProcessor
+        from performance_tracker import performance_tracker, QuizAttempt
+        from feedback_generator import feedback_generator
+        from db_auth_manager import db_auth_manager
+        from chat_processor import chat_processor
+        from ai_agent import ai_agent
+        from database import init_db, get_db, Document, GeneratedContent
+    except Exception as e:
+        logger.exception("Failed to import backend modules either as package-relative or absolute imports")
+        raise
 
 # Create uploads directory if it doesn't exist
 os.makedirs(settings.upload_dir, exist_ok=True)
